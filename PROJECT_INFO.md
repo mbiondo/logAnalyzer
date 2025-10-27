@@ -13,8 +13,24 @@ logAnalyzer/
 │   └── registry.go             # Plugin registration system
 ├── plugins/                    # Plugin implementations
 │   ├── input/                  # Input plugins (Docker, HTTP, File)
-│   ├── output/                 # Output plugins (Elasticsearch, Prometheus, etc.)
-│   └── filter/                 # Filter plugins (Level, Regex)
+│   │   ├── all.go              # Input plugin aggregator
+│   │   ├── docker/             # Docker input plugin
+│   │   ├── file/               # File input plugin
+│   │   ├── http/               # HTTP input plugin
+│   │   └── kafka/              # Kafka input plugin
+│   ├── output/                 # Output plugins
+│   │   ├── all.go              # Output plugin aggregator
+│   │   ├── console/            # Console output plugin
+│   │   ├── elasticsearch/      # Elasticsearch output plugin
+│   │   ├── file/               # File output plugin
+│   │   ├── prometheus/         # Prometheus output plugin
+│   │   └── slack/              # Slack output plugin
+│   └── filter/                 # Filter plugins
+│       ├── all.go              # Filter plugin aggregator
+│       ├── json/               # JSON filter plugin
+│       ├── level/              # Level filter plugin
+│       ├── rate_limit/         # Rate limit filter plugin
+│       └── regex/              # Regex filter plugin
 ├── examples/                   # Complete working example
 │   ├── docker-compose.yml      # All services configuration
 │   ├── loganalyzer.yaml        # Pipeline configuration
@@ -157,10 +173,10 @@ See `examples/loganalyzer.yaml` for a complete example.
 
 ### Adding a New Plugin
 
-1. Create plugin in appropriate directory
+1. Create plugin in appropriate directory (`plugins/input/`, `plugins/output/`, or `plugins/filter/`)
 2. Implement the plugin interface
 3. Register in `init()` function
-4. Import in `cmd/main.go`
+4. Add blank import to the corresponding aggregator file (`plugins/input/all.go`, `plugins/output/all.go`, or `plugins/filter/all.go`)
 
 See README.md section "Creating Custom Plugins" for details.
 

@@ -114,12 +114,19 @@ func init() {
 }
 ```
 
-### 3. Import in main.go
+### 3. Add to Plugin Aggregator
+
+Add the import to the appropriate aggregator file:
 
 ```go
-import (
-    _ "github.com/mbiondo/logAnalyzer/plugins/output/myplugin"  // Auto-registers!
-)
+// For output plugins: plugins/output/all.go
+import _ "github.com/mbiondo/logAnalyzer/plugins/output/myplugin"
+
+// For input plugins: plugins/input/all.go  
+import _ "github.com/mbiondo/logAnalyzer/plugins/input/myplugin"
+
+// For filter plugins: plugins/filter/all.go
+import _ "github.com/mbiondo/logAnalyzer/plugins/filter/myplugin"
 ```
 
 ### 4. Add Tests
