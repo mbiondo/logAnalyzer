@@ -1,9 +1,10 @@
 package elasticsearch
 
 import (
-	"github.com/mbiondo/logAnalyzer/core"
 	"testing"
 	"time"
+
+	"github.com/mbiondo/logAnalyzer/core"
 )
 
 func TestNewElasticsearchOutput(t *testing.T) {
@@ -76,7 +77,7 @@ func TestResolveIndexNameMultipleFormats(t *testing.T) {
 
 func TestElasticsearchOutputFromConfig(t *testing.T) {
 	config := map[string]any{
-		"addresses":  []interface{}{"http://localhost:9200"},
+		"addresses":  []any{"http://localhost:9200"},
 		"index":      "test-logs",
 		"username":   "elastic",
 		"password":   "password",
@@ -182,4 +183,3 @@ func TestConfigValidation(t *testing.T) {
 		})
 	}
 }
-

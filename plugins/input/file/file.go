@@ -22,7 +22,7 @@ type Config struct {
 }
 
 // NewFileInputFromConfig creates a file input from configuration map
-func NewFileInputFromConfig(config map[string]any) (interface{}, error) {
+func NewFileInputFromConfig(config map[string]any) (any, error) {
 	var cfg Config
 	if err := core.GetPluginConfig(config, &cfg); err != nil {
 		return nil, err
@@ -173,4 +173,3 @@ func (f *FileInput) parseLogLine(line string, filePath string) *core.Log {
 
 	return core.NewLogWithMetadata(level, message, metadata)
 }
-

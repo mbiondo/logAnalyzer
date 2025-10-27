@@ -17,7 +17,7 @@ type Config struct {
 }
 
 // NewLevelFilterFromConfig creates a level filter from configuration map
-func NewLevelFilterFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewLevelFilterFromConfig(config map[string]any) (any, error) {
 	var cfg Config
 	if err := core.GetPluginConfig(config, &cfg); err != nil {
 		return nil, err
