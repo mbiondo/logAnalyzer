@@ -13,6 +13,7 @@ import (
 	// Import plugins for auto-registration
 	_ "github.com/mbiondo/logAnalyzer/plugins/filter/json"
 	_ "github.com/mbiondo/logAnalyzer/plugins/filter/level"
+	_ "github.com/mbiondo/logAnalyzer/plugins/filter/rate_limit"
 	_ "github.com/mbiondo/logAnalyzer/plugins/filter/regex"
 	_ "github.com/mbiondo/logAnalyzer/plugins/input/docker"
 	_ "github.com/mbiondo/logAnalyzer/plugins/input/file"

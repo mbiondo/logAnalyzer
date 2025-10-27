@@ -21,7 +21,7 @@ A flexible, extensible log analysis system with a dynamic plugin architecture an
 
 - **Inputs**: File, Docker (with container filtering), HTTP, Kafka
 - **Outputs**: Console, File, Prometheus, Slack, Elasticsearch (with bulk indexing)
-- **Filters**: Level-based, Regex pattern matching, JSON parsing
+- **Filters**: Level-based, Regex pattern matching, JSON parsing, Rate limiting
 
 ## � Installation
 
@@ -562,6 +562,29 @@ echo '{"level":"error","message":"System error"}' | \
 - Parse JSON from message: `{"user":"alice","action":"login"}` → metadata: `user=alice, action=login`
 - Flatten nested: `{"user":{"name":"bob"}}` → metadata: `user_name=bob`
 - Parse from metadata field: Use `field: "data"` to parse a different metadata field
+
+### Rate Limit Filter
+
+```yaml
+- type: rate_limit
+  config:
+    rate: 10.0     # Logs per second (float)
+    burst: 50      # Maximum burst size (int)
+```
+
+**Configuration Options**:
+- `rate`: Number of logs allowed per second (required, float)
+- `burst`: Maximum token bucket capacity (required, int). Up to `burst` logs can pass through immediately when the bucket is full; rate limiting is always in effect.
+
+**How it works**:
+- Uses a token bucket algorithm to control the flow of logs
+- The bucket can hold up to `burst` tokens; if full, up to `burst` logs can pass through immediately. After that, tokens are refilled at the `rate` per second.
+- Rate limiting is always in effect; logs that exceed the available tokens are dropped (not passed to the output)
+- Useful for preventing overload of external systems like APIs, databases, or notification services
+
+**Examples**:
+- Limit to 5 logs per second with burst of 20: `rate: 5.0, burst: 20`
+- Allow bursts but sustain 1 log per second: `rate: 1.0, burst: 10`
 
 ## 💡 Use Cases
 

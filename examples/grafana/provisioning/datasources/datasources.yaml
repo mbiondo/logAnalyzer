@@ -18,7 +18,7 @@ datasources:
     type: elasticsearch
     access: proxy
     url: http://elasticsearch:9200
-    database: "kafka-logs-*"
+    database: "[kafka-logs-]YYYY.MM.DD"
     editable: true
     jsonData:
       timeField: "@timestamp"
