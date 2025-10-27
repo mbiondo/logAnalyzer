@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'loganalyzer-demo'
+    environment: 'test'
+
+scrape_configs:
+  # Scrape LogAnalyzer metrics
+  - job_name: 'loganalyzer'
+    static_configs:
+      - targets: ['loganalyzer:9091']
+        labels:
+          service: 'loganalyzer'
+          component: 'log-processor'
+    scrape_interval: 5s
+    scrape_timeout: 5s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'

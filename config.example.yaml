@@ -1,0 +1,24 @@
+# Simple LogAnalyzer Configuration Example
+# For complete example with all services, see examples/
+
+input:
+  inputs:
+    # Monitor Docker containers
+    - type: docker
+      name: "my-containers"
+      config:
+        container_filter: "my-app"  # or ["app1", "app2"]
+        stream: "stdout"
+
+output:
+  outputs:
+    # Output to console
+    - type: console
+      name: "console-out"
+      sources: []  # Accept from all inputs
+      filters:
+        - type: level
+          config:
+            levels: ["INFO", "WARN", "ERROR"]
+      config:
+        format: "json"

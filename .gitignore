@@ -1,0 +1,51 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+loganalyzer
+loganalyzer-*
+
+# Test binary
+*.test
+
+# Output coverage files
+*.out
+coverage.txt
+coverage.html
+
+# Go workspace file
+go.work
+
+# Build artifacts
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test logs
+test*.log
+processed.log
+*.log
+
+# Test environment
+logs/
+examples/grafana/dashboards/*.json.bak
+
+# Temporary files
+tmp/
+temp/
+
+# OS specific
+Thumbs.db
+.DS_Store
+
+# Dependencies
+vendor/

@@ -1,0 +1,126 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Release Binaries
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Get version
+      id: get_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Build binaries
+      run: |
+        # Linux
+        GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X main.version=${{ steps.get_version.outputs.VERSION }}" -o loganalyzer-linux-amd64 ./cmd
+        GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X main.version=${{ steps.get_version.outputs.VERSION }}" -o loganalyzer-linux-arm64 ./cmd
+        GOOS=linux GOARCH=arm go build -ldflags="-s -w -X main.version=${{ steps.get_version.outputs.VERSION }}" -o loganalyzer-linux-arm ./cmd
+        
+        # Windows
+        GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.version=${{ steps.get_version.outputs.VERSION }}" -o loganalyzer-windows-amd64.exe ./cmd
+        
+        # macOS
+        GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.version=${{ steps.get_version.outputs.VERSION }}" -o loganalyzer-darwin-amd64 ./cmd
+        GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.version=${{ steps.get_version.outputs.VERSION }}" -o loganalyzer-darwin-arm64 ./cmd
+
+    - name: Create archives
+      run: |
+        # Linux
+        tar czf loganalyzer-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz loganalyzer-linux-amd64 config/ README.md
+        tar czf loganalyzer-${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar.gz loganalyzer-linux-arm64 config/ README.md
+        tar czf loganalyzer-${{ steps.get_version.outputs.VERSION }}-linux-arm.tar.gz loganalyzer-linux-arm config/ README.md
+        
+        # Windows
+        zip loganalyzer-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip loganalyzer-windows-amd64.exe config/ README.md
+        
+        # macOS
+        tar czf loganalyzer-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.tar.gz loganalyzer-darwin-amd64 config/ README.md
+        tar czf loganalyzer-${{ steps.get_version.outputs.VERSION }}-darwin-arm64.tar.gz loganalyzer-darwin-arm64 config/ README.md
+
+    - name: Generate checksums
+      run: |
+        sha256sum loganalyzer-*.tar.gz loganalyzer-*.zip > checksums.txt
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          loganalyzer-*.tar.gz
+          loganalyzer-*.zip
+          checksums.txt
+        generate_release_notes: true
+        draft: false
+        prerelease: ${{ contains(steps.get_version.outputs.VERSION, '-') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Build and Push Docker Images
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check out code
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          ${{ secrets.DOCKERHUB_USERNAME }}/loganalyzer
+          ghcr.io/${{ github.repository }}
+        tags: |
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm64,linux/arm/v7
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max

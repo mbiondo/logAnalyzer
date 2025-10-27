@@ -1,0 +1,161 @@
+services:
+  # Elasticsearch for log storage and search
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: loganalyzer-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - loganalyzer-network
+
+  # Kibana for Elasticsearch visualization
+  kibana:
+    image: kibana:8.11.0
+    container_name: loganalyzer-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_NAME=kibana
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - loganalyzer-network
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: loganalyzer-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - loganalyzer-network
+
+  # Grafana for monitoring dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: loganalyzer-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - elasticsearch
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - loganalyzer-network
+
+  # Demo application that generates logs
+  demo-app:
+    image: alpine:latest
+    container_name: loganalyzer-demo-app
+    labels:
+      app: "demo"
+      environment: "test"
+    command: >
+      sh -c "
+      echo 'Starting demo application...';
+      while true; do
+        echo \"\$$(date '+%Y-%m-%d %H:%M:%S') INFO Application started successfully\";
+        sleep 2;
+        echo \"\$$(date '+%Y-%m-%d %H:%M:%S') DEBUG Processing request id=\$$RANDOM\";
+        sleep 1;
+        echo \"\$$(date '+%Y-%m-%d %H:%M:%S') WARN Memory usage at 75%\";
+        sleep 2;
+        if [ \$$((RANDOM % 5)) -eq 0 ]; then
+          echo \"\$$(date '+%Y-%m-%d %H:%M:%S') ERROR Failed to connect to database\";
+        fi;
+        sleep 3;
+        echo \"\$$(date '+%Y-%m-%d %H:%M:%S') INFO Request completed successfully\";
+        sleep 2;
+      done
+      "
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - loganalyzer-network
+
+  # LogAnalyzer service
+  loganalyzer:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: loganalyzer-service
+    environment:
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./loganalyzer.yaml:/config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: ["-config", "/config.yaml"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+      demo-app:
+        condition: service_started
+    ports:
+      - "8080:8080"  # HTTP input endpoint
+      - "9091:9091"  # Prometheus metrics endpoint
+    networks:
+      - loganalyzer-network
+    restart: unless-stopped
+
+volumes:
+  es_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  loganalyzer-network:
+    driver: bridge
