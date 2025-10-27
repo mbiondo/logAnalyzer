@@ -48,6 +48,7 @@ jobs:
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
+      id: build
       with:
         context: .
         platforms: linux/amd64,linux/arm64
@@ -58,14 +59,15 @@ jobs:
         cache-to: type=gha,mode=max
 
     - name: Run Trivy security scanner
+      if: github.event_name != 'pull_request'
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
         format: 'sarif'
         output: 'trivy-results.sarif'
 
     - name: Upload Trivy results to GitHub Security
       uses: github/codeql-action/upload-sarif@v2
-      if: always()
+      if: github.event_name != 'pull_request'
       with:
         sarif_file: 'trivy-results.sarif'
