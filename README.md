@@ -574,12 +574,12 @@ echo '{"level":"error","message":"System error"}' | \
 
 **Configuration Options**:
 - `rate`: Number of logs allowed per second (required, float)
-- `burst`: Maximum number of logs that can be processed in a burst before rate limiting kicks in (required, int)
+- `burst`: Maximum token bucket capacity (required, int). Up to `burst` logs can pass through immediately when the bucket is full; rate limiting is always in effect.
 
 **How it works**:
 - Uses a token bucket algorithm to control the flow of logs
-- Allows `burst` logs immediately, then limits to `rate` logs per second
-- Logs that exceed the rate limit are dropped (not passed to the output)
+- The bucket can hold up to `burst` tokens; if full, up to `burst` logs can pass through immediately. After that, tokens are refilled at the `rate` per second.
+- Rate limiting is always in effect; logs that exceed the available tokens are dropped (not passed to the output)
 - Useful for preventing overload of external systems like APIs, databases, or notification services
 
 **Examples**:
