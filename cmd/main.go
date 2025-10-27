@@ -11,6 +11,7 @@ import (
 	"github.com/mbiondo/logAnalyzer/core"
 
 	// Import plugins for auto-registration
+	_ "github.com/mbiondo/logAnalyzer/plugins/filter/json"
 	_ "github.com/mbiondo/logAnalyzer/plugins/filter/level"
 	_ "github.com/mbiondo/logAnalyzer/plugins/filter/regex"
 	_ "github.com/mbiondo/logAnalyzer/plugins/input/docker"
