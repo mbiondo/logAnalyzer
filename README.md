@@ -21,7 +21,7 @@ A flexible, extensible log analysis system with a dynamic plugin architecture an
 
 - **Inputs**: File, Docker (with container filtering), HTTP
 - **Outputs**: Console, File, Prometheus, Slack, Elasticsearch (with bulk indexing)
-- **Filters**: Level-based, Regex pattern matching
+- **Filters**: Level-based, Regex pattern matching, JSON parsing
 
 ## � Installation
 
@@ -462,6 +462,21 @@ curl -X POST http://localhost:8080/logs \
     mode: "include"      # include or exclude
     field: "message"     # message, level, or all
 ```
+
+### JSON Filter
+
+```yaml
+- type: json
+  config:
+    field: "message"     # Field to parse (default: "message")
+    flatten: false       # Flatten nested objects with underscores
+    ignore_errors: false # Ignore parsing errors instead of blocking
+```
+
+**Examples**:
+- Parse JSON from message: `{"user":"alice","action":"login"}` → metadata: `user=alice, action=login`
+- Flatten nested: `{"user":{"name":"bob"}}` → metadata: `user_name=bob`
+- Parse from metadata field: Use `field: "data"` to parse a different metadata field
 
 ## 💡 Use Cases
 

@@ -44,6 +44,7 @@ type HTTPInput struct {
 	stopCh  chan struct{}
 	wg      sync.WaitGroup
 	stopped bool // Flag to prevent multiple stops
+	name    string // Name of this input instance
 }
 
 // NewHTTPInput creates a new HTTP input plugin
@@ -105,6 +106,11 @@ func (h *HTTPInput) Stop() error {
 // SetLogChannel sets the channel to send logs to
 func (h *HTTPInput) SetLogChannel(ch chan<- *core.Log) {
 	h.logCh = ch
+}
+
+// SetName sets the name for this input instance
+func (h *HTTPInput) SetName(name string) {
+	h.name = name
 }
 
 // handleLogs handles POST requests with log data
@@ -220,6 +226,8 @@ func (h *HTTPInput) processJSONLogEntry(entry map[string]any) {
 		logEntry.Metadata["timestamp"] = timestamp
 	}
 
+	logEntry.Source = h.name // Set the source to the input name
+
 	select {
 	case h.logCh <- logEntry:
 	case <-h.stopCh:
@@ -280,5 +288,7 @@ func (h *HTTPInput) parseLogLine(line string) *core.Log {
 		"content_type": "text",
 	}
 
-	return core.NewLogWithMetadata(level, message, metadata)
+	logEntry := core.NewLogWithMetadata(level, message, metadata)
+	logEntry.Source = h.name // Set the source to the input name
+	return logEntry
 }

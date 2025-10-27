@@ -150,6 +150,28 @@ curl -X POST http://localhost:8080/logs \
   -d "Simple text log message"
 ```
 
+### Test JSON Filter Parsing
+
+The `elasticsearch-json` pipeline demonstrates JSON parsing. Send structured JSON logs:
+
+```bash
+# Send JSON log that will be parsed
+curl -X POST http://localhost:8080/logs \
+  -H "Content-Type: application/json" \
+  -d '{"level":"info","message":"{\"user\":\"alice\",\"action\":\"login\",\"timestamp\":\"2023-10-27T10:00:00Z\"}"}'
+
+# Send nested JSON log (will be flattened)
+curl -X POST http://localhost:8080/logs \
+  -H "Content-Type: application/json" \
+  -d '{"level":"error","message":"{\"user\":{\"name\":\"bob\",\"id\":123},\"error\":\"connection failed\"}"}'
+```
+
+**Verify parsing in Kibana:**
+1. Open http://localhost:5601 → Discover
+2. Set index pattern to `json-logs-*`
+3. Search for parsed fields: `user:alice` or `user_name:bob`
+4. See flattened fields like `user_name`, `user_id`, `error`
+
 ### Verify in Kibana
 
 1. Open http://localhost:5601
