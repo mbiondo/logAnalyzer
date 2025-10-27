@@ -209,18 +209,18 @@ func TestDockerInputStopBeforeStart(t *testing.T) {
 	input := NewDockerInput(nil, nil, nil, "stdout")
 
 	// Should not panic
-	input.Stop()
+	_ = input.Stop()
 }
 
 func TestDockerInputDoubleStop(t *testing.T) {
 	input := NewDockerInput(nil, nil, nil, "stdout")
 
 	// Mock start (won't actually start without docker)
-	input.Start() // This may fail, but shouldn't panic
+	_ = input.Start() // This may fail, but shouldn't panic
 
 	// Both stops should not panic
-	input.Stop()
-	input.Stop()
+	_ = input.Stop()
+	_ = input.Stop()
 }
 
 // Test parsing with various log formats
@@ -294,4 +294,3 @@ func TestContainerIDHandling(t *testing.T) {
 		})
 	}
 }
-

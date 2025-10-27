@@ -16,7 +16,7 @@ func init() {
 }
 
 // ContainerFilterValue can be either a string or []string
-type ContainerFilterValue interface{}
+type ContainerFilterValue any
 
 // Config represents docker input configuration
 type Config struct {
@@ -27,7 +27,7 @@ type Config struct {
 }
 
 // NewDockerInputFromConfig creates a docker input from configuration map
-func NewDockerInputFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewDockerInputFromConfig(config map[string]any) (any, error) {
 	var cfg Config
 	if err := core.GetPluginConfig(config, &cfg); err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func NewDockerInputFromConfig(config map[string]interface{}) (interface{}, error
 		switch v := cfg.ContainerFilter.(type) {
 		case string:
 			containerFilters = []string{v}
-		case []interface{}:
+		case []any:
 			for _, item := range v {
 				if str, ok := item.(string); ok {
 					containerFilters = append(containerFilters, str)
@@ -250,7 +250,7 @@ func (d *DockerInput) monitorContainer(containerID string) {
 	for {
 		select {
 		case <-d.stopCh:
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill()
 			return
 		default:
 			if scanner.Scan() {
@@ -260,7 +260,7 @@ func (d *DockerInput) monitorContainer(containerID string) {
 					select {
 					case d.logCh <- logEntry:
 					case <-d.stopCh:
-						cmd.Process.Kill()
+						_ = cmd.Process.Kill()
 						return
 					}
 				}

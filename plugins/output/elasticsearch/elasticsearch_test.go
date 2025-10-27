@@ -75,7 +75,7 @@ func TestResolveIndexNameMultipleFormats(t *testing.T) {
 }
 
 func TestElasticsearchOutputFromConfig(t *testing.T) {
-	config := map[string]interface{}{
+	config := map[string]any{
 		"addresses":  []interface{}{"http://localhost:9200"},
 		"index":      "test-logs",
 		"username":   "elastic",
@@ -182,3 +182,4 @@ func TestConfigValidation(t *testing.T) {
 		})
 	}
 }
+

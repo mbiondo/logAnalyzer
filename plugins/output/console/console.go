@@ -21,7 +21,7 @@ type Config struct {
 }
 
 // NewConsoleOutputFromConfig creates a console output from configuration map
-func NewConsoleOutputFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewConsoleOutputFromConfig(config map[string]any) (interface{}, error) {
 	var cfg Config
 	if err := core.GetPluginConfig(config, &cfg); err != nil {
 		return nil, err
@@ -118,3 +118,4 @@ func (c *ConsoleOutput) Close() error {
 	// No actual closing needed for stdout/stderr
 	return nil
 }
+

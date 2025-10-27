@@ -175,7 +175,7 @@ func TestFileInputIntegration(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Stop the input
-	input.Stop()
+	_ = input.Stop()
 
 	// Collect received logs
 	var receivedLogs []*core.Log
@@ -213,7 +213,7 @@ func TestFileInputNonexistentFile(t *testing.T) {
 	err := input.Start()
 	if err == nil {
 		t.Error("Expected error when starting with nonexistent file")
-		input.Stop()
+		_ = input.Stop()
 	}
 }
 
@@ -221,7 +221,7 @@ func TestFileInputStopBeforeStart(t *testing.T) {
 	input := NewFileInput("test.log")
 
 	// Should not panic
-	input.Stop()
+	_ = input.Stop()
 }
 
 func TestFileInputDoubleStop(t *testing.T) {
@@ -243,10 +243,10 @@ func TestFileInputDoubleStop(t *testing.T) {
 	}
 
 	// First stop should work
-	input.Stop()
+	_ = input.Stop()
 
 	// Second stop should not panic
-	input.Stop()
+	_ = input.Stop()
 }
 
 func TestParseLogLineCaseInsensitive(t *testing.T) {

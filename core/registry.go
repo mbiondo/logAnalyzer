@@ -6,7 +6,7 @@ import (
 )
 
 // PluginFactory is a function that creates a plugin instance from configuration
-type PluginFactory func(config map[string]interface{}) (interface{}, error)
+type PluginFactory func(config map[string]any) (any, error)
 
 // PluginRegistry manages plugin registration and instantiation
 type PluginRegistry struct {
@@ -47,7 +47,7 @@ func RegisterFilterPlugin(name string, factory PluginFactory) {
 }
 
 // CreateInputPlugin creates an input plugin instance
-func CreateInputPlugin(pluginType string, config map[string]interface{}) (InputPlugin, error) {
+func CreateInputPlugin(pluginType string, config map[string]any) (InputPlugin, error) {
 	registry.mu.RLock()
 	factory, exists := registry.inputs[pluginType]
 	registry.mu.RUnlock()
@@ -70,7 +70,7 @@ func CreateInputPlugin(pluginType string, config map[string]interface{}) (InputP
 }
 
 // CreateOutputPlugin creates an output plugin instance
-func CreateOutputPlugin(pluginType string, config map[string]interface{}) (OutputPlugin, error) {
+func CreateOutputPlugin(pluginType string, config map[string]any) (OutputPlugin, error) {
 	registry.mu.RLock()
 	factory, exists := registry.outputs[pluginType]
 	registry.mu.RUnlock()
@@ -93,7 +93,7 @@ func CreateOutputPlugin(pluginType string, config map[string]interface{}) (Outpu
 }
 
 // CreateFilterPlugin creates a filter plugin instance
-func CreateFilterPlugin(pluginType string, config map[string]interface{}) (FilterPlugin, error) {
+func CreateFilterPlugin(pluginType string, config map[string]any) (FilterPlugin, error) {
 	registry.mu.RLock()
 	factory, exists := registry.filters[pluginType]
 	registry.mu.RUnlock()

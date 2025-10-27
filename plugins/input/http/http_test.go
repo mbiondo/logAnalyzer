@@ -227,7 +227,7 @@ func TestHandleJSONLogsSingle(t *testing.T) {
 	logCh := make(chan *core.Log, 10)
 	input.SetLogChannel(logCh)
 
-	logData := map[string]interface{}{
+	logData := map[string]any{
 		"level":     "error",
 		"message":   "Test error message",
 		"timestamp": "2023-01-01T12:00:00Z",
@@ -264,7 +264,7 @@ func TestHandleJSONLogsArray(t *testing.T) {
 	logCh := make(chan *core.Log, 10)
 	input.SetLogChannel(logCh)
 
-	logData := []map[string]interface{}{
+	logData := []map[string]any{
 		{
 			"level":   "error",
 			"message": "First error",
@@ -306,7 +306,9 @@ func TestHTTPInputIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start HTTP input: %v", err)
 	}
-	defer input.Stop()
+	defer func() {
+		_ = input.Stop()
+	}()
 
 	// Wait a bit for server to start
 	time.Sleep(100 * time.Millisecond)

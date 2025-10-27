@@ -46,15 +46,15 @@ func (m *mockFilterPlugin) Process(log *Log) bool {
 }
 
 // Factory functions for mock plugins
-func mockInputFactory(config map[string]interface{}) (interface{}, error) {
+func mockInputFactory(config map[string]any) (any, error) {
 	return &mockInputPlugin{}, nil
 }
 
-func mockOutputFactory(config map[string]interface{}) (interface{}, error) {
+func mockOutputFactory(config map[string]any) (any, error) {
 	return &mockOutputPlugin{logs: make([]*Log, 0)}, nil
 }
 
-func mockFilterFactory(config map[string]interface{}) (interface{}, error) {
+func mockFilterFactory(config map[string]any) (any, error) {
 	shouldPass := true
 	if pass, ok := config["pass"].(bool); ok {
 		shouldPass = pass
@@ -62,11 +62,11 @@ func mockFilterFactory(config map[string]interface{}) (interface{}, error) {
 	return &mockFilterPlugin{shouldPass: shouldPass}, nil
 }
 
-func mockErrorFactory(config map[string]interface{}) (interface{}, error) {
+func mockErrorFactory(config map[string]any) (any, error) {
 	return nil, fmt.Errorf("mock error")
 }
 
-func mockInvalidTypeFactory(config map[string]interface{}) (interface{}, error) {
+func mockInvalidTypeFactory(config map[string]any) (any, error) {
 	return "not a plugin", nil
 }
 
@@ -136,7 +136,7 @@ func TestCreateInputPlugin(t *testing.T) {
 	RegisterInputPlugin("mock-input", mockInputFactory)
 
 	// Test successful creation
-	plugin, err := CreateInputPlugin("mock-input", map[string]interface{}{})
+	plugin, err := CreateInputPlugin("mock-input", map[string]any{})
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -170,7 +170,7 @@ func TestCreateOutputPlugin(t *testing.T) {
 	RegisterOutputPlugin("mock-output", mockOutputFactory)
 
 	// Test successful creation
-	plugin, err := CreateOutputPlugin("mock-output", map[string]interface{}{})
+	plugin, err := CreateOutputPlugin("mock-output", map[string]any{})
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -210,7 +210,7 @@ func TestCreateFilterPlugin(t *testing.T) {
 	RegisterFilterPlugin("mock-filter", mockFilterFactory)
 
 	// Test successful creation with pass=true
-	plugin, err := CreateFilterPlugin("mock-filter", map[string]interface{}{"pass": true})
+	plugin, err := CreateFilterPlugin("mock-filter", map[string]any{"pass": true})
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -246,19 +246,19 @@ func TestCreatePluginUnknownType(t *testing.T) {
 	registry.mu.Unlock()
 
 	// Test unknown input plugin
-	_, err := CreateInputPlugin("unknown", map[string]interface{}{})
+	_, err := CreateInputPlugin("unknown", map[string]any{})
 	if err == nil {
 		t.Error("Expected error for unknown input plugin")
 	}
 
 	// Test unknown output plugin
-	_, err = CreateOutputPlugin("unknown", map[string]interface{}{})
+	_, err = CreateOutputPlugin("unknown", map[string]any{})
 	if err == nil {
 		t.Error("Expected error for unknown output plugin")
 	}
 
 	// Test unknown filter plugin
-	_, err = CreateFilterPlugin("unknown", map[string]interface{}{})
+	_, err = CreateFilterPlugin("unknown", map[string]any{})
 	if err == nil {
 		t.Error("Expected error for unknown filter plugin")
 	}
@@ -278,19 +278,19 @@ func TestCreatePluginFactoryError(t *testing.T) {
 	RegisterFilterPlugin("error-filter", mockErrorFactory)
 
 	// Test input plugin error
-	_, err := CreateInputPlugin("error-input", map[string]interface{}{})
+	_, err := CreateInputPlugin("error-input", map[string]any{})
 	if err == nil {
 		t.Error("Expected error from input plugin factory")
 	}
 
 	// Test output plugin error
-	_, err = CreateOutputPlugin("error-output", map[string]interface{}{})
+	_, err = CreateOutputPlugin("error-output", map[string]any{})
 	if err == nil {
 		t.Error("Expected error from output plugin factory")
 	}
 
 	// Test filter plugin error
-	_, err = CreateFilterPlugin("error-filter", map[string]interface{}{})
+	_, err = CreateFilterPlugin("error-filter", map[string]any{})
 	if err == nil {
 		t.Error("Expected error from filter plugin factory")
 	}
@@ -310,19 +310,19 @@ func TestCreatePluginInvalidType(t *testing.T) {
 	RegisterFilterPlugin("invalid-filter", mockInvalidTypeFactory)
 
 	// Test input plugin invalid type
-	_, err := CreateInputPlugin("invalid-input", map[string]interface{}{})
+	_, err := CreateInputPlugin("invalid-input", map[string]any{})
 	if err == nil {
 		t.Error("Expected error for invalid input plugin type")
 	}
 
 	// Test output plugin invalid type
-	_, err = CreateOutputPlugin("invalid-output", map[string]interface{}{})
+	_, err = CreateOutputPlugin("invalid-output", map[string]any{})
 	if err == nil {
 		t.Error("Expected error for invalid output plugin type")
 	}
 
 	// Test filter plugin invalid type
-	_, err = CreateFilterPlugin("invalid-filter", map[string]interface{}{})
+	_, err = CreateFilterPlugin("invalid-filter", map[string]any{})
 	if err == nil {
 		t.Error("Expected error for invalid filter plugin type")
 	}
@@ -413,7 +413,7 @@ func TestConcurrentCreation(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := CreateInputPlugin("mock-input", map[string]interface{}{})
+			_, err := CreateInputPlugin("mock-input", map[string]any{})
 			if err != nil {
 				errors <- err
 			}
@@ -423,7 +423,7 @@ func TestConcurrentCreation(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := CreateOutputPlugin("mock-output", map[string]interface{}{})
+			_, err := CreateOutputPlugin("mock-output", map[string]any{})
 			if err != nil {
 				errors <- err
 			}
@@ -433,7 +433,7 @@ func TestConcurrentCreation(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := CreateFilterPlugin("mock-filter", map[string]interface{}{})
+			_, err := CreateFilterPlugin("mock-filter", map[string]any{})
 			if err != nil {
 				errors <- err
 			}
@@ -492,12 +492,12 @@ func TestPluginOverwrite(t *testing.T) {
 	firstCalled := false
 	secondCalled := false
 
-	firstFactory := func(config map[string]interface{}) (interface{}, error) {
+	firstFactory := func(config map[string]any) (any, error) {
 		firstCalled = true
 		return &mockInputPlugin{}, nil
 	}
 
-	secondFactory := func(config map[string]interface{}) (interface{}, error) {
+	secondFactory := func(config map[string]any) (any, error) {
 		secondCalled = true
 		return &mockInputPlugin{}, nil
 	}
@@ -505,7 +505,7 @@ func TestPluginOverwrite(t *testing.T) {
 	RegisterInputPlugin("test", firstFactory)
 	RegisterInputPlugin("test", secondFactory)
 
-	_, err := CreateInputPlugin("test", map[string]interface{}{})
+	_, err := CreateInputPlugin("test", map[string]any{})
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}

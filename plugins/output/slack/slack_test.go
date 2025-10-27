@@ -319,7 +319,7 @@ func TestSlackOutputConcurrency(t *testing.T) {
 		<-done
 	}
 
-	output.Close()
+	_ = output.Close()
 
 	// Verify all requests were sent
 	if requestCount != 10 {
