@@ -61,3 +61,25 @@ output:
       config:
         target: "stdout"
         format: "json"
+
+    # Pipeline 4: JSON logs from HTTP to Elasticsearch with parsing
+    - type: elasticsearch
+      name: "elasticsearch-json"
+      sources: ["http-api"]  # Only from HTTP input
+      filters:
+        # Parse JSON from message field
+        - type: json
+          config:
+            field: "message"
+            flatten: true
+            ignore_errors: false
+        # Filter by parsed level field
+        - type: level
+          config:
+            levels: ["INFO", "WARN", "ERROR"]
+      config:
+        addresses:
+          - "http://elasticsearch:9200"
+        index: "json-logs-{yyyy.MM.dd}"
+        batch_size: 50
+        timeout: 30
