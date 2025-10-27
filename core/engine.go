@@ -23,7 +23,8 @@ type Engine struct {
 	wg        sync.WaitGroup
 	ctx       context.Context
 	cancel    context.CancelFunc
-	stopped   bool // Flag to prevent multiple stops
+	stopped   bool       // Flag to prevent multiple stops
+	mu        sync.Mutex // Protects stopped flag
 }
 
 // InputPlugin interface for log input sources
@@ -111,21 +112,29 @@ func (e *Engine) Start() {
 
 // Stop gracefully shuts down the engine
 func (e *Engine) Stop() {
+	e.mu.Lock()
 	if e.stopped {
+		e.mu.Unlock()
 		return // Already stopped
 	}
 	e.stopped = true
+	e.mu.Unlock()
 
+	// Signal context cancellation first
 	e.cancel()
-	close(e.inputCh)
-	e.wg.Wait()
 
-	// Stop all inputs
+	// Stop all inputs first to stop new logs from coming
 	for name, input := range e.inputs {
 		if err := input.Stop(); err != nil {
 			log.Printf("Error stopping input plugin %s: %v", name, err)
 		}
 	}
+
+	// Close the input channel after inputs are stopped
+	close(e.inputCh)
+
+	// Wait for processing goroutine to finish
+	e.wg.Wait()
 
 	// Close all outputs
 	for _, pipeline := range e.pipelines {
