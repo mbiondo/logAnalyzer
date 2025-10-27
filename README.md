@@ -19,7 +19,7 @@ A flexible, extensible log analysis system with a dynamic plugin architecture an
 
 ## 📦 Built-in Plugins
 
-- **Inputs**: File, Docker (with container filtering), HTTP
+- **Inputs**: File, Docker (with container filtering), HTTP, Kafka
 - **Outputs**: Console, File, Prometheus, Slack, Elasticsearch (with bulk indexing)
 - **Filters**: Level-based, Regex pattern matching, JSON parsing
 
@@ -141,6 +141,7 @@ docker-compose down
   - **Pre-configured Dashboard**: http://localhost:3000/d/loganalyzer-metrics
 - 🚀 **LogAnalyzer** - Log processing with pipeline architecture
   - HTTP input: http://localhost:8080/logs
+  - Kafka input: localhost:9092 (topic: application-logs)
   - Metrics: http://localhost:9091/metrics
 - 🐋 **Demo App** - Generates sample logs for testing
 
@@ -154,6 +155,7 @@ Each output operates as an independent pipeline with:
 - **Independent Config**: Each output has its own settings
 
 ```
+```
 ┌──────────────┐  Source: "docker-app"
 │ Docker Input ├────────────┐
 └──────────────┘            │
@@ -163,18 +165,24 @@ Each output operates as an independent pipeline with:
 └──────────────┘      │   (Engine)     │
    Source: "http"     └────────────────┘
                             │
+┌──────────────┐            │
+│ Kafka Input  ├────────────┘
+└──────────────┘
+   Source: "kafka"
+                            │
                 ┌───────────┼───────────┐
                 ▼           ▼           ▼
          ┌──────────┐ ┌──────────┐ ┌──────────┐
          │Pipeline 1│ │Pipeline 2│ │Pipeline 3│
          │──────────│ │──────────│ │──────────│
          │Sources:  │ │Sources:  │ │Sources:  │
-         │  - All   │ │ - docker │ │  - http  │
+         │  - All   │ │ - docker │ │ - kafka  │
          │Filters:  │ │Filters:  │ │Filters:  │
          │ - ERROR  │ │ - INFO+  │ │ - WARN+  │
          │Output:   │ │Output:   │ │Output:   │
          │  Slack   │ │Elastic   │ │Console   │
          └──────────┘ └──────────┘ └──────────┘
+```
 ```
 
 ## ⚙️ Configuration
@@ -269,6 +277,14 @@ input:
       name: "external"
       config:
         port: "8080"
+    
+    - type: kafka
+      name: "stream-logs"
+      config:
+        brokers: ["kafka:29092"]
+        topic: "application-logs"
+        group_id: "loganalyzer-group"
+        start_offset: "latest"
 
 output:
   outputs:
@@ -298,6 +314,18 @@ output:
             levels: ["INFO", "WARN", "ERROR"]
       config:
         index: "web-{yyyy.MM.dd}"
+    
+    # Kafka stream logs to separate index
+    - type: elasticsearch
+      name: "kafka-index"
+      sources: ["stream-logs"]
+      filters:
+        - type: json
+          config:
+            field: "message"
+            flatten: true
+      config:
+        index: "kafka-logs-{yyyy.MM.dd}"
     
     # API metrics to Prometheus
     - type: prometheus
@@ -435,6 +463,63 @@ curl -X POST http://localhost:8080/logs \
   -d '{"level":"error","message":"Failed"}'
 ```
 
+### Kafka Input
+
+```yaml
+- type: kafka
+  name: "kafka-logs"
+  config:
+    brokers:
+      - "localhost:9092"
+      - "kafka:29092"
+    topic: "application-logs"
+    group_id: "loganalyzer-group"        # Optional: Consumer group
+    start_offset: "latest"               # earliest, latest, or specific offset
+    min_bytes: 1                         # Minimum bytes to fetch
+    max_bytes: 10485760                  # Maximum bytes to fetch (10MB)
+    client_id: "loganalyzer"             # Optional: Client identifier
+    username: "user"                     # Optional: SASL username
+    password: "pass"                     # Optional: SASL password
+    tls: true                            # Optional: Enable TLS
+    insecure_skip_verify: false          # Optional: Skip TLS verification
+```
+
+**Configuration Options**:
+- `brokers`: Array of Kafka broker addresses (required)
+- `topic`: Kafka topic to consume from (required)
+- `group_id`: Consumer group ID for coordinated consumption (optional)
+- `start_offset`: Where to start consuming - `earliest`, `latest`, or numeric offset (default: `latest`)
+- `min_bytes`: Minimum bytes to accumulate before fetching (default: 1)
+- `max_bytes`: Maximum bytes to fetch in a batch (default: 10MB)
+- `client_id`: Client identifier for Kafka connections (optional)
+- `username`/`password`: SASL authentication credentials (optional)
+- `tls`: Enable TLS encryption (default: false)
+- `insecure_skip_verify`: Skip TLS certificate verification (default: false)
+
+**Metadata Added**:
+- `topic`: Kafka topic name
+- `partition`: Partition number
+- `offset`: Message offset
+- `key`: Message key (if present)
+- `header.*`: Kafka message headers
+
+**Usage Examples**:
+```bash
+# Send JSON message to Kafka
+echo '{"level":"info","message":"User login","user_id":123}' | \
+  docker exec -i kafka kafka-console-producer \
+    --bootstrap-server localhost:9092 \
+    --topic application-logs
+
+# Send with headers
+echo '{"level":"error","message":"System error"}' | \
+  docker exec -i kafka kafka-console-producer \
+    --bootstrap-server localhost:9092 \
+    --topic application-logs \
+    --property "parse.headers=true" \
+    --property "headers=level:error,service:auth"
+```
+
 ### File Input
 
 ```yaml
@@ -568,6 +653,64 @@ output:
         index: "db-errors-{yyyy.MM.dd}"
 ```
 
+### Use Case 4: Event Streaming & Microservices
+
+```yaml
+# Kafka streams → Elasticsearch with JSON parsing
+# Application logs → Metrics
+input:
+  inputs:
+    - type: kafka
+      name: "event-stream"
+      config:
+        brokers: ["kafka:29092"]
+        topic: "user-events"
+        group_id: "loganalyzer-events"
+        start_offset: "latest"
+    
+    - type: docker
+      name: "microservices"
+      config:
+        container_filter: ["auth-*", "payment-*", "notification-*"]
+
+output:
+  outputs:
+    # Parse and index Kafka events
+    - type: elasticsearch
+      name: "events-index"
+      sources: ["event-stream"]
+      filters:
+        - type: json
+          config:
+            field: "message"
+            flatten: true
+      config:
+        index: "events-{yyyy.MM.dd}"
+    
+    # Application metrics
+    - type: prometheus
+      name: "app-metrics"
+      sources: ["microservices"]
+      filters:
+        - type: level
+          config: {levels: ["INFO", "WARN", "ERROR"]}
+      config: {port: 9091}
+    
+    # Critical errors to Slack
+    - type: slack
+      name: "critical-alerts"
+      sources: []
+      filters:
+        - type: level
+          config: {levels: ["ERROR"]}
+        - type: regex
+          config:
+            patterns: ["CRITICAL", "DOWN", "FAILED"]
+            mode: "include"
+      config:
+        webhook_url: "..."
+```
+
 ## 🛠️ Creating Custom Plugins
 
 ```go
@@ -657,6 +800,7 @@ go test ./...
 # Specific package
 go test ./core -v
 go test ./plugins/input/docker -v
+go test ./plugins/input/kafka -v
 
 # Coverage
 go test -cover ./...

@@ -17,6 +17,7 @@ import (
 	_ "github.com/mbiondo/logAnalyzer/plugins/input/docker"
 	_ "github.com/mbiondo/logAnalyzer/plugins/input/file"
 	_ "github.com/mbiondo/logAnalyzer/plugins/input/http"
+	_ "github.com/mbiondo/logAnalyzer/plugins/input/kafka"
 	_ "github.com/mbiondo/logAnalyzer/plugins/output/console"
 	_ "github.com/mbiondo/logAnalyzer/plugins/output/elasticsearch"
 	_ "github.com/mbiondo/logAnalyzer/plugins/output/file"

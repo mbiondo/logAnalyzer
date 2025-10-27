@@ -17,6 +17,18 @@ input:
       config:
         port: "8080"
 
+    # Kafka topic consumption
+    - type: kafka
+      name: "kafka-logs"
+      config:
+        brokers:
+          - "kafka:29092"
+        topic: "application-logs"
+        group_id: "loganalyzer-group"
+        start_offset: "latest"
+        min_bytes: 1
+        max_bytes: 10485760  # 10MB
+
 output:
   outputs:
     # Pipeline 1: All logs to Elasticsearch with filtering
@@ -81,5 +93,27 @@ output:
         addresses:
           - "http://elasticsearch:9200"
         index: "json-logs-{yyyy.MM.dd}"
+        batch_size: 50
+        timeout: 30
+
+    # Pipeline 5: Kafka logs to Elasticsearch with parsing
+    - type: elasticsearch
+      name: "elasticsearch-kafka"
+      sources: ["kafka-logs"]  # Only from Kafka input
+      filters:
+        # Parse JSON from message field
+        - type: json
+          config:
+            field: "message"
+            flatten: true
+            ignore_errors: false
+        # Filter by parsed level field
+        - type: level
+          config:
+            levels: ["INFO", "WARN", "ERROR"]
+      config:
+        addresses:
+          - "http://elasticsearch:9200"
+        index: "kafka-logs-{yyyy.MM.dd}"
         batch_size: 50
         timeout: 30
