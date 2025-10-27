@@ -248,14 +248,20 @@ func TestHandleJSONLogsSingle(t *testing.T) {
 	if logEntry.Level != "error" {
 		t.Errorf("Expected level 'error', got '%s'", logEntry.Level)
 	}
-	if logEntry.Message != "Test error message" {
-		t.Errorf("Expected message 'Test error message', got '%s'", logEntry.Message)
+
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(logEntry.Message), &parsed); err != nil {
+		t.Fatalf("Expected valid JSON message, got error: %v", err)
 	}
-	if logEntry.Metadata["service"] != "test-service" {
-		t.Errorf("Expected metadata service 'test-service', got '%s'", logEntry.Metadata["service"])
+	if parsed["message"] != "Test error message" {
+		t.Errorf("Expected embedded message 'Test error message', got '%v'", parsed["message"])
 	}
-	if logEntry.Metadata["timestamp"] != "2023-01-01T12:00:00Z" {
-		t.Errorf("Expected timestamp '2023-01-01T12:00:00Z', got '%s'", logEntry.Metadata["timestamp"])
+	if parsed["service"] != "test-service" {
+		t.Errorf("Expected embedded service 'test-service', got '%v'", parsed["service"])
+	}
+
+	if logEntry.Metadata["content_type"] != "json" {
+		t.Errorf("Expected content_type metadata 'json', got '%s'", logEntry.Metadata["content_type"])
 	}
 }
 
@@ -286,13 +292,27 @@ func TestHandleJSONLogsArray(t *testing.T) {
 	}
 
 	log1 := <-logCh
-	if log1.Level != "error" || log1.Message != "First error" {
-		t.Errorf("First log: expected error/First error, got %s/%s", log1.Level, log1.Message)
+	if log1.Level != "error" {
+		t.Errorf("First log: expected level 'error', got %s", log1.Level)
+	}
+	var first map[string]any
+	if err := json.Unmarshal([]byte(log1.Message), &first); err != nil {
+		t.Fatalf("First log: invalid JSON message: %v", err)
+	}
+	if first["message"] != "First error" {
+		t.Errorf("First log: expected message 'First error', got '%v'", first["message"])
 	}
 
 	log2 := <-logCh
-	if log2.Level != "warn" || log2.Message != "Second warning" {
-		t.Errorf("Second log: expected warn/Second warning, got %s/%s", log2.Level, log2.Message)
+	if log2.Level != "warn" {
+		t.Errorf("Second log: expected level 'warn', got %s", log2.Level)
+	}
+	var second map[string]any
+	if err := json.Unmarshal([]byte(log2.Message), &second); err != nil {
+		t.Fatalf("Second log: invalid JSON message: %v", err)
+	}
+	if second["message"] != "Second warning" {
+		t.Errorf("Second log: expected message 'Second warning', got '%v'", second["message"])
 	}
 }
 
