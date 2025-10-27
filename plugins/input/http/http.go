@@ -43,7 +43,7 @@ type HTTPInput struct {
 	logCh   chan<- *core.Log
 	stopCh  chan struct{}
 	wg      sync.WaitGroup
-	stopped bool // Flag to prevent multiple stops
+	stopped bool   // Flag to prevent multiple stops
 	name    string // Name of this input instance
 }
 
@@ -176,56 +176,26 @@ func (h *HTTPInput) handleJSONLogs(data []byte) {
 
 // processJSONLogEntry processes a single JSON log entry
 func (h *HTTPInput) processJSONLogEntry(entry map[string]any) {
-	level := "info" // default
-	message := ""
-	timestamp := ""
+	// For JSON logs, pass the raw JSON as the message so filters can parse it
+	jsonBytes, err := json.Marshal(entry)
+	if err != nil {
+		log.Printf("Error marshaling JSON entry: %v", err)
+		return
+	}
+
+	message := string(jsonBytes)
+	level := "info" // default level
 	metadata := make(map[string]string)
 
 	metadata["source"] = "http"
 	metadata["content_type"] = "json"
 
-	// Extract common fields
+	// Try to extract level from the JSON for initial classification
 	if l, ok := entry["level"].(string); ok {
 		level = strings.ToLower(l)
 	}
-	if m, ok := entry["message"].(string); ok {
-		message = m
-	}
-	if t, ok := entry["timestamp"].(string); ok {
-		timestamp = t
-	}
-	if ts, ok := entry["time"].(string); ok {
-		timestamp = ts
-	}
-
-	// Add all other fields as metadata
-	for k, v := range entry {
-		if k != "level" && k != "message" && k != "timestamp" && k != "time" {
-			if str, ok := v.(string); ok {
-				metadata[k] = str
-			} else {
-				// Convert to JSON string for complex types
-				if jsonBytes, err := json.Marshal(v); err == nil {
-					metadata[k] = string(jsonBytes)
-				}
-			}
-		}
-	}
-
-	if message == "" {
-		// If no message field, use the entire JSON as message
-		if jsonBytes, err := json.Marshal(entry); err == nil {
-			message = string(jsonBytes)
-		}
-	}
 
 	logEntry := core.NewLogWithMetadata(level, message, metadata)
-	if timestamp != "" {
-		// Note: In a real implementation, you'd parse and set the timestamp
-		// For now, we'll just add it to metadata
-		logEntry.Metadata["timestamp"] = timestamp
-	}
-
 	logEntry.Source = h.name // Set the source to the input name
 
 	select {
