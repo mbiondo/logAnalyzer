@@ -56,13 +56,13 @@ func (f *RateLimitFilter) Process(log *core.Log) bool {
 	elapsed := now.Sub(f.lastRefill).Seconds()
 
 	// Refill tokens based on elapsed time
-	f.tokens += elapsed * f.rate
-	if f.tokens > float64(f.burst) {
-		f.tokens = float64(f.burst)
+	if elapsed > 0 {
+		f.tokens += elapsed * f.rate
+		if f.tokens > float64(f.burst) {
+			f.tokens = float64(f.burst)
+		}
+		f.lastRefill = now
 	}
-
-	f.lastRefill = now
-
 	// Check if we have a token
 	if f.tokens >= 1.0 {
 		f.tokens -= 1.0
