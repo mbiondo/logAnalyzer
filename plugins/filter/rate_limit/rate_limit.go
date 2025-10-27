@@ -30,11 +30,11 @@ func NewRateLimitFilterFromConfig(config map[string]any) (any, error) {
 
 // RateLimitFilter implements token bucket rate limiting
 type RateLimitFilter struct {
-	rate       float64       // tokens per second
-	burst      int           // max tokens
-	tokens     float64       // current tokens
-	lastRefill time.Time     // last refill time
-	mu         sync.Mutex    // for thread safety
+	rate       float64    // tokens per second
+	burst      int        // max tokens
+	tokens     float64    // current tokens
+	lastRefill time.Time  // last refill time
+	mu         sync.Mutex // for thread safety
 }
 
 // NewRateLimitFilter creates a new rate limit filter

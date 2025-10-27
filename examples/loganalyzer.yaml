@@ -47,6 +47,12 @@ output:
             patterns: ["request id="]
             mode: "exclude"
             field: "message"
+        
+        # Rate limit to prevent Elasticsearch overload (5 logs/sec, burst of 20)
+        - type: rate_limit
+          config:
+            rate: 5.0
+            burst: 20
       config:
         addresses:
           - "http://elasticsearch:9200"
@@ -70,6 +76,11 @@ output:
         - type: level
           config:
             levels: ["WARN", "ERROR"]
+        # Rate limit console output (2 logs/sec, burst of 5)
+        - type: rate_limit
+          config:
+            rate: 2.0
+            burst: 5
       config:
         target: "stdout"
         format: "json"
