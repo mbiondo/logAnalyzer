@@ -1,0 +1,207 @@
+{
+  "id": null,
+  "uid": "kafka-logs-dashboard",
+  "title": "Kafka Logs Dashboard",
+  "tags": ["loganalyzer", "kafka", "logs"],
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "refresh": "5s",
+  "schemaVersion": 38,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Kafka Logs by Level",
+      "type": "logs",
+      "datasource": "Elasticsearch",
+      "targets": [
+        {
+          "query": "_index:kafka-logs-2025.10.27 AND metadata.level:(ERROR OR WARN OR INFO)",
+          "refId": "A",
+          "metrics": [{ "type": "logs" }],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "title": "All Kafka Messages",
+      "type": "logs",
+      "datasource": "Elasticsearch",
+      "targets": [
+        {
+          "query": "_index:kafka-logs-2025.10.27 AND *",
+          "refId": "A",
+          "metrics": [{ "type": "logs" }],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "title": "Kafka Warning Logs",
+      "type": "logs",
+      "datasource": "Elasticsearch",
+      "targets": [
+        {
+          "query": "_index:kafka-logs-2025.10.27 AND metadata.level:WARN",
+          "refId": "A",
+          "metrics": [{ "type": "logs" }],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      }
+    },
+    {
+      "id": 4,
+      "title": "Kafka Error Logs",
+      "type": "logs",
+      "datasource": "Elasticsearch",
+      "targets": [
+        {
+          "query": "_index:kafka-logs-2025.10.27 AND metadata.level:ERROR",
+          "refId": "A",
+          "metrics": [{ "type": "logs" }],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      }
+    },
+    {
+      "id": 5,
+      "title": "All Kafka Logs",
+      "type": "logs",
+      "datasource": "Elasticsearch",
+      "targets": [
+        {
+          "query": "_index:kafka-logs-2025.10.27 AND *",
+          "refId": "A",
+          "metrics": [{ "type": "logs" }],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      }
+    },
+    {
+      "id": 6,
+      "title": "Kafka Services & Metadata",
+      "type": "logs",
+      "datasource": "Elasticsearch",
+      "targets": [
+        {
+          "query": "_index:kafka-logs-2025.10.27 AND metadata.topic:* AND metadata.partition:*",
+          "refId": "A",
+          "metrics": [{ "type": "logs" }],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      }
+    },
+    {
+      "id": 7,
+      "title": "Kafka Service Logs",
+      "type": "logs",
+      "datasource": "Elasticsearch",
+      "targets": [
+        {
+          "query": "_index:kafka-logs-2025.10.27 AND metadata.service:*",
+          "refId": "A",
+          "metrics": [{ "type": "logs" }],
+          "timeField": "@timestamp"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true,
+        "enableLogDetails": true
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      }
+    }
+  ]
+}
