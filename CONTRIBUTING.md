@@ -100,7 +100,7 @@ func (p *MyPlugin) Close() error {
 }
 
 // Factory function for the registry
-func NewMyPluginFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewMyPluginFromConfig(config map[string]any) (any, error) {
     var cfg Config
     if err := core.GetPluginConfig(config, &cfg); err != nil {
         return nil, err
@@ -248,7 +248,7 @@ docker run --rm loganalyzer:test
 - Use type-safe config structs
 
 ```go
-func NewMyPluginFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewMyPluginFromConfig(config map[string]any) (any, error) {
     var cfg Config
     if err := core.GetPluginConfig(config, &cfg); err != nil {
         return nil, err

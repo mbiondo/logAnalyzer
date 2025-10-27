@@ -20,7 +20,7 @@ type Config struct {
 }
 
 // NewFileOutputFromConfig creates a file output from configuration map
-func NewFileOutputFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewFileOutputFromConfig(config map[string]any) (any, error) {
 	var cfg Config
 	if err := core.GetPluginConfig(config, &cfg); err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ func (f *FileOutput) Close() error {
 
 	if f.writer != nil {
 		if err := f.writer.Flush(); err != nil {
-			f.file.Close()
+			_ = f.file.Close()
 			return fmt.Errorf("failed to flush writer: %w", err)
 		}
 	}

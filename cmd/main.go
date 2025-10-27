@@ -106,7 +106,7 @@ func main() {
 	log.Println("LogAnalyzer shutdown complete")
 }
 
-func createInputPlugin(pluginType string, name string, config map[string]interface{}, engine *core.Engine) {
+func createInputPlugin(pluginType string, name string, config map[string]any, engine *core.Engine) {
 	// Use plugin registry to create plugin dynamically
 	inputPlugin, err := core.CreateInputPlugin(pluginType, config)
 	if err != nil {
@@ -153,23 +153,7 @@ func createOutputPipeline(name string, outputDef core.PluginDefinition, engine *
 		outputDef.Type, name, outputDef.Sources, len(filters))
 }
 
-func createOutputPlugin(pluginType string, config map[string]interface{}, index int, engine *core.Engine) {
-	indexStr := ""
-	if index > 0 {
-		indexStr = " #" + string(rune(index+'0'))
-	}
-
-	// Use plugin registry to create plugin dynamically
-	outputPlugin, err := core.CreateOutputPlugin(pluginType, config)
-	if err != nil {
-		log.Fatalf("Error creating output plugin %s%s: %v", pluginType, indexStr, err)
-	}
-
-	engine.AddOutput(outputPlugin)
-	log.Printf("Using %s output plugin%s", pluginType, indexStr)
-}
-
-func createFilterPlugin(pluginType string, config map[string]interface{}, index int, engine *core.Engine) {
+func createFilterPlugin(pluginType string, config map[string]any, index int, engine *core.Engine) {
 	indexStr := ""
 	if index > 0 {
 		indexStr = " #" + string(rune(index+'0'))

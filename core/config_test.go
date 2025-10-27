@@ -40,12 +40,16 @@ output:
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	if _, err := tmpFile.Write([]byte(configContent)); err != nil {
 		t.Fatalf("failed to write to temp file: %v", err)
 	}
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("failed to close temp file: %v", err)
+	}
 
 	// Load config
 	config, err := LoadConfig(tmpFile.Name())
@@ -67,7 +71,7 @@ output:
 		t.Errorf("expected filter type 'level', got '%s'", config.Filter.Type)
 	}
 
-	if levels, ok := config.Filter.Config["levels"].([]interface{}); !ok || len(levels) != 3 {
+	if levels, ok := config.Filter.Config["levels"].([]any); !ok || len(levels) != 3 {
 		t.Errorf("expected 3 filter levels in config, got %v", config.Filter.Config["levels"])
 	}
 
@@ -106,7 +110,7 @@ func TestGetPluginConfig(t *testing.T) {
 		Timeout    int    `yaml:"timeout"`
 	}
 
-	pluginConfig := map[string]interface{}{
+	pluginConfig := map[string]any{
 		"webhook_url": "https://hooks.slack.com/services/xxx",
 		"channel":     "#alerts",
 		"username":    "LogBot",
@@ -141,9 +145,9 @@ func TestGetPluginConfigWithComplexStructs(t *testing.T) {
 		Stream       string            `yaml:"stream"`
 	}
 
-	pluginConfig := map[string]interface{}{
-		"container_ids": []interface{}{"web", "api"},
-		"labels": map[string]interface{}{
+	pluginConfig := map[string]any{
+		"container_ids": []any{"web", "api"},
+		"labels": map[string]any{
 			"app": "myapp",
 			"env": "prod",
 		},
@@ -210,12 +214,16 @@ output:
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	if _, err := tmpFile.Write([]byte(configContent)); err != nil {
 		t.Fatalf("failed to write to temp file: %v", err)
 	}
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("failed to close temp file: %v", err)
+	}
 
 	config, err := LoadConfig(tmpFile.Name())
 	if err != nil {
@@ -262,12 +270,16 @@ output:
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	if _, err := tmpFile.Write([]byte(configContent)); err != nil {
 		t.Fatalf("failed to write to temp file: %v", err)
 	}
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("failed to close temp file: %v", err)
+	}
 
 	config, err := LoadConfig(tmpFile.Name())
 	if err != nil {
@@ -318,12 +330,16 @@ output:
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
 
 	if _, err := tmpFile.Write([]byte(configContent)); err != nil {
 		t.Fatalf("failed to write to temp file: %v", err)
 	}
-	tmpFile.Close()
+	if err := tmpFile.Close(); err != nil {
+		t.Fatalf("failed to close temp file: %v", err)
+	}
 
 	config, err := LoadConfig(tmpFile.Name())
 	if err != nil {
@@ -343,11 +359,11 @@ output:
 	}
 
 	// Verify filter configs
-	if levels, ok := config.Filter.Filters[0].Config["levels"].([]interface{}); !ok || len(levels) != 3 {
+	if levels, ok := config.Filter.Filters[0].Config["levels"].([]any); !ok || len(levels) != 3 {
 		t.Errorf("expected 3 levels in first filter, got %v", config.Filter.Filters[0].Config["levels"])
 	}
 
-	if patterns, ok := config.Filter.Filters[1].Config["patterns"].([]interface{}); !ok || len(patterns) != 2 {
+	if patterns, ok := config.Filter.Filters[1].Config["patterns"].([]any); !ok || len(patterns) != 2 {
 		t.Errorf("expected 2 patterns in second filter, got %v", config.Filter.Filters[1].Config["patterns"])
 	}
 }

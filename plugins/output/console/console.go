@@ -21,7 +21,7 @@ type Config struct {
 }
 
 // NewConsoleOutputFromConfig creates a console output from configuration map
-func NewConsoleOutputFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewConsoleOutputFromConfig(config map[string]any) (any, error) {
 	var cfg Config
 	if err := core.GetPluginConfig(config, &cfg); err != nil {
 		return nil, err

@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"github.com/mbiondo/logAnalyzer/core"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mbiondo/logAnalyzer/core"
 
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
@@ -44,7 +45,7 @@ type ElasticsearchOutput struct {
 }
 
 // NewElasticsearchOutputFromConfig creates an Elasticsearch output from configuration
-func NewElasticsearchOutputFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewElasticsearchOutputFromConfig(config map[string]any) (any, error) {
 	var cfg Config
 	if err := core.GetPluginConfig(config, &cfg); err != nil {
 		return nil, err
@@ -91,10 +92,12 @@ func NewElasticsearchOutput(config Config) (*ElasticsearchOutput, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Elasticsearch: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 
 	if res.IsError() {
-		return nil, fmt.Errorf("Elasticsearch returned error: %s", res.String())
+		return nil, fmt.Errorf("elasticsearch returned error: %s", res.String())
 	}
 
 	ctx, cancel = context.WithCancel(context.Background())
@@ -163,8 +166,8 @@ func (e *ElasticsearchOutput) flush() error {
 		// Index directive
 		indexName := e.resolveIndexName(logEntry.Timestamp)
 		log.Printf("[ELASTICSEARCH] Log %d/%d -> Index: %s", i+1, batchSize, indexName)
-		meta := map[string]interface{}{
-			"index": map[string]interface{}{
+		meta := map[string]any{
+			"index": map[string]any{
 				"_index": indexName,
 			},
 		}
@@ -173,7 +176,7 @@ func (e *ElasticsearchOutput) flush() error {
 		buf.WriteByte('\n')
 
 		// Document
-		doc := map[string]interface{}{
+		doc := map[string]any{
 			"@timestamp": logEntry.Timestamp.Format(time.RFC3339),
 			"level":      logEntry.Level,
 			"message":    logEntry.Message,
@@ -202,11 +205,13 @@ func (e *ElasticsearchOutput) flush() error {
 		log.Printf("[ELASTICSEARCH] Bulk request failed: %v", err)
 		return fmt.Errorf("bulk request failed: %w", err)
 	}
-	defer res.Body.Close()
+	defer func() {
+		_ = res.Body.Close()
+	}()
 
 	if res.IsError() {
 		log.Printf("[ELASTICSEARCH] Response error status: %s", res.Status())
-		var errResp map[string]interface{}
+		var errResp map[string]any
 		if err := json.NewDecoder(res.Body).Decode(&errResp); err == nil {
 			log.Printf("[ELASTICSEARCH] Error response: %v", errResp)
 			return fmt.Errorf("elasticsearch error: %v", errResp)
@@ -215,7 +220,7 @@ func (e *ElasticsearchOutput) flush() error {
 	}
 
 	// Check for partial failures
-	var bulkResp map[string]interface{}
+	var bulkResp map[string]any
 	if err := json.NewDecoder(res.Body).Decode(&bulkResp); err != nil {
 		log.Printf("[ELASTICSEARCH] Failed to parse response: %v", err)
 		return fmt.Errorf("failed to parse response: %w", err)
@@ -239,7 +244,7 @@ func (e *ElasticsearchOutput) periodicFlush() {
 	for {
 		select {
 		case <-ticker.C:
-			e.flush()
+			_ = e.flush()
 		case <-e.ctx.Done():
 			return
 		}

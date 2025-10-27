@@ -205,7 +205,7 @@ func TestConsoleOutputConcurrency(t *testing.T) {
 		<-done
 	}
 
-	output.Close()
+	_ = output.Close()
 
 	// Check that we got some output
 	outputStr := buf.String()

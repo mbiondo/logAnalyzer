@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/mbiondo/logAnalyzer/core"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/mbiondo/logAnalyzer/core"
 )
 
 func init() {
@@ -26,7 +27,7 @@ type Config struct {
 }
 
 // NewSlackOutputFromConfig creates a slack output from configuration map
-func NewSlackOutputFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewSlackOutputFromConfig(config map[string]any) (any, error) {
 	var cfg Config
 	if err := core.GetPluginConfig(config, &cfg); err != nil {
 		return nil, err
@@ -133,7 +134,9 @@ func (s *SlackOutput) Write(log *core.Log) error {
 	if err != nil {
 		return fmt.Errorf("failed to send Slack message: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("slack webhook returned status %d", resp.StatusCode)

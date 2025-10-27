@@ -19,7 +19,7 @@ type Config struct {
 }
 
 // NewRegexFilterFromConfig creates a regex filter from configuration map
-func NewRegexFilterFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewRegexFilterFromConfig(config map[string]any) (any, error) {
 	var cfg Config
 	if err := core.GetPluginConfig(config, &cfg); err != nil {
 		return nil, err

@@ -1,17 +1,18 @@
 package elasticsearch
 
 import (
-	"github.com/mbiondo/logAnalyzer/core"
 	"testing"
 	"time"
+
+	"github.com/mbiondo/logAnalyzer/core"
 )
 
 // TestPluginRegistration verifies the plugin is registered correctly
 func TestPluginRegistration(t *testing.T) {
 	// Test that plugin factory is registered
-	config := map[string]interface{}{
+	config := map[string]any{
 		"index":      "test-logs",
-		"addresses":  []interface{}{"http://localhost:9200"},
+		"addresses":  []any{"http://localhost:9200"},
 		"batch_size": 50,
 	}
 
@@ -202,8 +203,8 @@ func TestDateTemplateEdgeCases(t *testing.T) {
 
 // TestConfigFromMap tests configuration parsing from map
 func TestConfigFromMap(t *testing.T) {
-	configMap := map[string]interface{}{
-		"addresses":  []interface{}{"http://es1:9200", "http://es2:9200"},
+	configMap := map[string]any{
+		"addresses":  []any{"http://es1:9200", "http://es2:9200"},
 		"index":      "test-logs-{yyyy.MM.dd}",
 		"username":   "elastic",
 		"password":   "secret",

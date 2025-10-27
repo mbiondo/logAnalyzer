@@ -22,7 +22,7 @@ type Config struct {
 }
 
 // NewHTTPInputFromConfig creates an HTTP input from configuration map
-func NewHTTPInputFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewHTTPInputFromConfig(config map[string]any) (any, error) {
 	var cfg Config
 	if err := core.GetPluginConfig(config, &cfg); err != nil {
 		return nil, err
@@ -120,7 +120,9 @@ func (h *HTTPInput) handleLogs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
+	defer func() {
+		_ = r.Body.Close()
+	}()
 
 	contentType := r.Header.Get("Content-Type")
 
@@ -136,22 +138,22 @@ func (h *HTTPInput) handleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	_, _ = w.Write([]byte("OK"))
 }
 
 // handleHealth provides a health check endpoint
 func (h *HTTPInput) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	_, _ = w.Write([]byte("OK"))
 }
 
 // handleJSONLogs processes JSON log entries
 func (h *HTTPInput) handleJSONLogs(data []byte) {
 	// Try to parse as a single log entry
-	var logEntry map[string]interface{}
+	var logEntry map[string]any
 	if err := json.Unmarshal(data, &logEntry); err != nil {
 		// Try to parse as an array of log entries
-		var logEntries []map[string]interface{}
+		var logEntries []map[string]any
 		if err := json.Unmarshal(data, &logEntries); err != nil {
 			log.Printf("Error parsing JSON logs: %v", err)
 			return
@@ -167,7 +169,7 @@ func (h *HTTPInput) handleJSONLogs(data []byte) {
 }
 
 // processJSONLogEntry processes a single JSON log entry
-func (h *HTTPInput) processJSONLogEntry(entry map[string]interface{}) {
+func (h *HTTPInput) processJSONLogEntry(entry map[string]any) {
 	level := "info" // default
 	message := ""
 	timestamp := ""

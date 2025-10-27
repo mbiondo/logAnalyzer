@@ -21,7 +21,9 @@ func TestNewFileOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFileOutput failed: %v", err)
 	}
-	defer output.Close()
+	defer func() {
+		_ = output.Close()
+	}()
 
 	if output.filePath != filePath {
 		t.Errorf("Expected filePath %s, got %s", filePath, output.filePath)
@@ -46,7 +48,9 @@ func TestFileOutputWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFileOutput failed: %v", err)
 	}
-	defer output.Close()
+	defer func() {
+		_ = output.Close()
+	}()
 
 	testLog := core.Log{
 		Timestamp: time.Now(),
@@ -104,7 +108,9 @@ func TestFileOutputMultipleWrites(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFileOutput failed: %v", err)
 	}
-	defer output.Close()
+	defer func() {
+		_ = output.Close()
+	}()
 
 	logs := []core.Log{
 		{Timestamp: time.Now(), Level: "error", Message: "First error"},
@@ -154,7 +160,9 @@ func TestFileOutputConcurrency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFileOutput failed: %v", err)
 	}
-	defer output.Close()
+	defer func() {
+		_ = output.Close()
+	}()
 
 	// Write logs concurrently
 	done := make(chan bool, 10)

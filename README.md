@@ -568,7 +568,7 @@ type Config struct {
     Option string `yaml:"option"`
 }
 
-func NewMyPluginFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewMyPluginFromConfig(config map[string]any) (any, error) {
     var cfg Config
     if err := core.GetPluginConfig(config, &cfg); err != nil {
         return nil, err

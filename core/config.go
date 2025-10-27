@@ -17,8 +17,8 @@ type Config struct {
 // InputConfig represents input plugin configuration with dynamic plugin configs
 type InputConfig struct {
 	// Single input (backward compatibility)
-	Type   string                 `yaml:"type,omitempty"`
-	Config map[string]interface{} `yaml:"config,omitempty"`
+	Type   string         `yaml:"type,omitempty"`
+	Config map[string]any `yaml:"config,omitempty"`
 
 	// Multiple inputs (new feature)
 	Inputs []PluginDefinition `yaml:"inputs,omitempty"`
@@ -26,9 +26,9 @@ type InputConfig struct {
 
 // PluginDefinition represents a generic plugin definition
 type PluginDefinition struct {
-	Type   string                 `yaml:"type"`           // Plugin type: "file", "docker", "http", "slack", etc.
-	Name   string                 `yaml:"name,omitempty"` // Optional name to identify this plugin instance
-	Config map[string]interface{} `yaml:"config"`         // Dynamic configuration for the plugin
+	Type   string         `yaml:"type"`           // Plugin type: "file", "docker", "http", "slack", etc.
+	Name   string         `yaml:"name,omitempty"` // Optional name to identify this plugin instance
+	Config map[string]any `yaml:"config"`         // Dynamic configuration for the plugin
 
 	// Output-specific options
 	Sources []string           `yaml:"sources,omitempty"` // Input sources to accept logs from (empty = all)
@@ -38,8 +38,8 @@ type PluginDefinition struct {
 // FilterConfig represents filter plugin configuration with dynamic plugin configs
 type FilterConfig struct {
 	// Single filter (backward compatibility)
-	Type   string                 `yaml:"type,omitempty"`
-	Config map[string]interface{} `yaml:"config,omitempty"`
+	Type   string         `yaml:"type,omitempty"`
+	Config map[string]any `yaml:"config,omitempty"`
 
 	// Multiple filters (new feature)
 	Filters []PluginDefinition `yaml:"filters,omitempty"`
@@ -48,8 +48,8 @@ type FilterConfig struct {
 // OutputConfig represents output configuration with dynamic plugin configs
 type OutputConfig struct {
 	// Single output (backward compatibility)
-	Type   string                 `yaml:"type,omitempty"`
-	Config map[string]interface{} `yaml:"config,omitempty"`
+	Type   string         `yaml:"type,omitempty"`
+	Config map[string]any `yaml:"config,omitempty"`
 
 	// Multiple outputs (new feature)
 	Outputs []PluginDefinition `yaml:"outputs,omitempty"`
@@ -71,7 +71,7 @@ func LoadConfig(filename string) (*Config, error) {
 }
 
 // GetPluginConfig extracts and unmarshals plugin-specific configuration
-func GetPluginConfig(pluginConfig map[string]interface{}, target interface{}) error {
+func GetPluginConfig(pluginConfig map[string]any, target any) error {
 	// Convert map to YAML then unmarshal to target struct
 	data, err := yaml.Marshal(pluginConfig)
 	if err != nil {
@@ -90,20 +90,20 @@ func DefaultConfig() *Config {
 	return &Config{
 		Input: InputConfig{
 			Type: "file",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"path":     "app.log",
 				"encoding": "utf-8",
 			},
 		},
 		Filter: FilterConfig{
 			Type: "level",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"levels": []string{"error", "warn"},
 			},
 		},
 		Output: OutputConfig{
 			Type: "prometheus",
-			Config: map[string]interface{}{
+			Config: map[string]any{
 				"port": 9090,
 			},
 		},

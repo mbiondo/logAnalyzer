@@ -59,7 +59,7 @@ func TestPrometheusOutputClose(t *testing.T) {
 
 	// Add some metrics
 	log := core.NewLog("error", "test error")
-	output.Write(log)
+	_ = output.Write(log)
 
 	err := output.Close()
 	if err != nil {
@@ -79,7 +79,7 @@ func TestPrometheusOutputConcurrency(t *testing.T) {
 	go func() {
 		for i := 0; i < 100; i++ {
 			log := core.NewLog("error", "concurrent error")
-			output.Write(log)
+			_ = output.Write(log)
 		}
 		done <- true
 	}()
@@ -87,7 +87,7 @@ func TestPrometheusOutputConcurrency(t *testing.T) {
 	go func() {
 		for i := 0; i < 100; i++ {
 			log := core.NewLog("warn", "concurrent warn")
-			output.Write(log)
+			_ = output.Write(log)
 		}
 		done <- true
 	}()

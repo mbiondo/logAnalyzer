@@ -24,7 +24,7 @@ type Config struct {
 }
 
 // NewPrometheusOutputFromConfig creates a prometheus output from configuration map
-func NewPrometheusOutputFromConfig(config map[string]interface{}) (interface{}, error) {
+func NewPrometheusOutputFromConfig(config map[string]any) (any, error) {
 	var cfg Config
 	if err := core.GetPluginConfig(config, &cfg); err != nil {
 		return nil, err
