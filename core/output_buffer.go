@@ -304,8 +304,8 @@ func (ob *OutputBuffer) requeueForRetry(bufferedLog *BufferedLog) {
 
 // calculateBackoff calculates exponential backoff delay
 func (ob *OutputBuffer) calculateBackoff(attempts int) time.Duration {
-	// For the first retry (attempts=1), use base interval
-	// For subsequent retries, use exponential backoff: 2x, 4x, 8x, etc.
+	// For first retry (attempts=1), backoff is 1x base interval.
+	// For subsequent retries, backoff doubles: 2x, 4x, 8x, etc.
 	if attempts < 1 {
 		attempts = 1
 	}
