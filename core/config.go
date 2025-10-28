@@ -12,8 +12,10 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Inputs  []PluginDefinition `yaml:"inputs"`
-	Outputs []PluginDefinition `yaml:"outputs"`
+	Inputs       []PluginDefinition `yaml:"inputs"`
+	Outputs      []PluginDefinition `yaml:"outputs"`
+	Persistence  PersistenceConfig  `yaml:"persistence,omitempty"`
+	OutputBuffer OutputBufferConfig `yaml:"output_buffer,omitempty"`
 }
 
 // PluginDefinition represents a generic plugin definition
@@ -101,7 +103,7 @@ func NewConfigWatcher(filename string, onReload func(*Config)) (*ConfigWatcher, 
 	// Get initial file modification time
 	info, err := os.Stat(filename)
 	if err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return nil, fmt.Errorf("failed to stat config file: %w", err)
 	}
 
@@ -126,7 +128,7 @@ func NewConfigWatcher(filename string, onReload func(*Config)) (*ConfigWatcher, 
 	}
 
 	if err := watcher.Add(dir); err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return nil, fmt.Errorf("failed to watch directory: %w", err)
 	}
 
@@ -139,7 +141,7 @@ func NewConfigWatcher(filename string, onReload func(*Config)) (*ConfigWatcher, 
 // Stop stops the config watcher
 func (cw *ConfigWatcher) Stop() {
 	close(cw.stopCh)
-	cw.watcher.Close()
+	_ = cw.watcher.Close()
 	cw.wg.Wait()
 }
 

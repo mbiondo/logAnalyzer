@@ -178,6 +178,9 @@ services:
     volumes:
       - ./loganalyzer.yaml:/config.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - loganalyzer_wal:/data/wal            # Persistence volume for Write-Ahead Logging
+      - loganalyzer_buffers:/data/buffers    # Buffer volume for retry queues
+      - loganalyzer_dlq:/data/dlq            # Dead Letter Queue volume
     command: ["-config", "/config.yaml"]
     depends_on:
       elasticsearch:
@@ -207,6 +210,12 @@ volumes:
   zookeeper_data:
     driver: local
   zookeeper_logs:
+    driver: local
+  loganalyzer_wal:
+    driver: local
+  loganalyzer_buffers:
+    driver: local
+  loganalyzer_dlq:
     driver: local
 
 networks:

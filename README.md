@@ -1,508 +1,405 @@
-# LogAnalyzer - Dynamic Plugin System with Pipeline Architecture
+# LogAnalyzer - Dynamic Log Processing Pipeline
 
 [![Go Version](https://img.shields.io/badge/Go-1.23%2B-00ADD8?logo=go)](https://go.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![GitHub Issues](https://img.shields.io/github/issues/mbiondo/logAnalyzer)](https://github.com/mbiondo/logAnalyzer/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/mbiondo/logAnalyzer)](https://github.com/mbiondo/logAnalyzer/stargazers)
+[![Test Coverage](https://img.shields.io/badge/coverage-71.3%25-brightgreen.svg)](TESTING_REPORT.md)
 
-A flexible, extensible log analysis system with a dynamic plugin architecture and powerful output pipeline system. Process logs from multiple sources with per-output filtering and routing!
+A flexible, production-ready log processing system with intelligent routing, automatic failover, and zero-downtime operations. Collect logs from multiple sources, filter intelligently, and route to multiple destinations with per-output configuration.
 
-## 🚀 Key Features
+## ✨ Why LogAnalyzer?
 
-- **Pipeline Architecture**: Each output can have its own filters and source restrictions
-- **Source-Based Routing**: Route logs from specific inputs to specific outputs
-- **Per-Output Filtering**: Apply different filters to different outputs
-- **Dynamic Plugin Registration**: Plugins auto-register themselves using Go's `init()` function
-- **Multiple Inputs/Outputs**: Run multiple input and output plugins simultaneously
-- **Container Filtering**: Monitor specific Docker containers by name pattern (string or array)
-- **Flexible Configuration**: YAML-based configuration with plugin-specific settings
-- **Hot Reload**: Automatically reload configuration changes without restarting the application
+- 🔄 **High Availability**: Service starts even when dependencies (Elasticsearch, Kafka) are down
+- 🛡️ **Zero Log Loss**: Write-Ahead Logging + automatic retry with exponential backoff  
+- 🎯 **Smart Routing**: Route specific inputs to specific outputs with independent filtering
+- ⚡ **Hot Reload**: Update configuration without restarting or dropping logs
+- 🔌 **Extensible**: Plugin architecture - add custom inputs, outputs, and filters
+- 📊 **Production Ready**: 71% test coverage with race condition verification
 
-## 📦 Built-in Plugins
+## 🚀 Quick Start
 
-- **Inputs**: File, Docker (with container filtering), HTTP, Kafka
-- **Outputs**: Console, File, Prometheus, Slack, Elasticsearch (with bulk indexing)
-- **Filters**: Level-based, Regex pattern matching, JSON parsing, Rate limiting
-
-## � Installation
-
-### Using Go Install
+### Try the Complete Example
 
 ```bash
-go install github.com/mbiondo/logAnalyzer/cmd@latest
-```
-
-### Build from Source
-
-```bash
-# Clone the repository
-git clone https://github.com/mbiondo/logAnalyzer.git
-cd logAnalyzer
-
-# Build binary directly
-go build -o loganalyzer ./cmd/main.go
-
-# Or use the build script
-
-# Linux/Mac:
-chmod +x build.sh
-./build.sh              # Build only
-./build.sh --test       # Build with tests
-./build.sh --clean      # Clean and build
-./build.sh -t -c        # Clean, test, and build
-
-# Windows:
-.\build.ps1             # Build only
-.\build.ps1 -Test       # Build with tests
-.\build.ps1 -Clean      # Clean and build
-```
-
-### Using Docker
-
-```bash
-docker pull ghcr.io/mbiondo/loganalyzer:latest
-# Or build locally
-docker build -t loganalyzer .
-```
-
-## 📋 Quick Start
-
-### Run
-
-```bash
-# With configuration file
-./loganalyzer -config config.yaml
-
-# With hot reload enabled (automatically reloads config changes)
-./loganalyzer -config config.yaml -hot-reload
-
-# Using example config
-./loganalyzer -config examples/loganalyzer.yaml
-```
-
-### Quick Example Start
-
-```bash
-# Linux/Mac:
-chmod +x start-example.sh
-./start-example.sh
-
-# Windows:
-.\start-example.ps1
-```
-
-This will start Elasticsearch, Kibana, Prometheus, Grafana, and LogAnalyzer with a demo app!
-
-### Verify the Stack
-
-After starting the example, verify all services are working:
-
-```bash
-# Check all containers are running
-docker-compose ps
-
-# Verify Elasticsearch is indexing logs
-curl http://localhost:9200/_cat/indices?v
-# Windows: (Invoke-WebRequest http://localhost:9200/_cat/indices?v).Content
-
-# View LogAnalyzer metrics
-curl http://localhost:9091/metrics | grep loganalyzer_logs_total
-# Windows: (Invoke-WebRequest http://localhost:9091/metrics).Content | Select-String "loganalyzer_logs_total"
-
-# Access Grafana Dashboard
-# Open: http://localhost:3000/d/loganalyzer-metrics (admin/admin)
-```
-
-### Stop
-
-Press `Ctrl+C` to gracefully shutdown
-
-## 🧪 Complete Example with Docker
-
-### Ready-to-Use Environment
-
-All configuration files and a complete Docker setup are in the `examples/` directory:
-
-```powershell
-# Start everything
+# Start Elasticsearch, Kibana, Prometheus, Grafana, and LogAnalyzer
 cd examples
 docker-compose up -d
 
-# View logs
-docker logs loganalyzer-service -f
-
-# Stop everything
-docker-compose down
+# Access Services:
+# - Grafana Dashboards: http://localhost:3000 (admin/admin)
+# - Kibana: http://localhost:5601  
+# - Prometheus: http://localhost:9090
+# - LogAnalyzer Metrics: http://localhost:9091/metrics
+# - HTTP Log Endpoint: http://localhost:8080/logs
 ```
 
-**See [examples/README.md](examples/README.md) for detailed setup instructions!**
+**📖 Full setup guide:** [examples/README.md](examples/README.md)
 
-**Services included:**
-- 🔍 **Elasticsearch** (http://localhost:9200) - Log storage and indexing
-- 📊 **Kibana** (http://localhost:5601) - Log search and visualization  
-- 📈 **Prometheus** (http://localhost:9090) - Metrics collection and monitoring
-- 📉 **Grafana** (http://localhost:3000) - Unified dashboards (credentials: admin/admin)
-  - **Pre-configured Dashboard**: http://localhost:3000/d/loganalyzer-metrics
-- 🚀 **LogAnalyzer** - Log processing with pipeline architecture
-  - HTTP input: http://localhost:8080/logs
-  - Kafka input: localhost:9092 (topic: application-logs)
-  - Metrics: http://localhost:9091/metrics
-- 🐋 **Demo App** - Generates sample logs for testing
+### Install Binary
 
-## 🏗️ Pipeline Architecture
+```bash
+# Using Go
+go install github.com/mbiondo/logAnalyzer/cmd@latest
 
-### How It Works
+# Or build from source
+git clone https://github.com/mbiondo/logAnalyzer.git
+cd logAnalyzer
+go build -o loganalyzer ./cmd/main.go
 
-Each output operates as an independent pipeline with:
-- **Source Filter**: Accept logs only from specified inputs
-- **Custom Filters**: Apply level and regex filters per output
-- **Independent Config**: Each output has its own settings
-
-```
-```
-┌──────────────┐  Source: "docker-app"
-│ Docker Input ├────────────┐
-└──────────────┘            │
-                            ▼
-┌──────────────┐      ┌────────────────┐
-│  HTTP Input  │─────▶│  Log Router    │
-└──────────────┘      │   (Engine)     │
-   Source: "http"     └────────────────┘
-                            │
-┌──────────────┐            │
-│ Kafka Input  ├────────────┘
-└──────────────┘
-   Source: "kafka"
-                            │
-                ┌───────────┼───────────┐
-                ▼           ▼           ▼
-         ┌──────────┐ ┌──────────┐ ┌──────────┐
-         │Pipeline 1│ │Pipeline 2│ │Pipeline 3│
-         │──────────│ │──────────│ │──────────│
-         │Sources:  │ │Sources:  │ │Sources:  │
-         │  - All   │ │ - docker │ │ - kafka  │
-         │Filters:  │ │Filters:  │ │Filters:  │
-         │ - ERROR  │ │ - INFO+  │ │ - WARN+  │
-         │Output:   │ │Output:   │ │Output:   │
-         │  Slack   │ │Elastic   │ │Console   │
-         └──────────┘ └──────────┘ └──────────┘
-```
+# Run with hot reload
+./loganalyzer -config config.yaml -hot-reload
 ```
 
-## ⚙️ Configuration
-
-### Basic Pipeline Example
+## 📋 Complete Configuration Example
 
 ```yaml
+# ============================================
+# PERSISTENCE - Write-Ahead Logging
+# Prevents log loss during crashes/restarts
+# ============================================
+persistence:
+  enabled: true
+  dir: "./data/wal"
+  max_file_size: 104857600    # 100MB per file
+  buffer_size: 100            # Buffer 100 logs before flush
+  flush_interval: 5           # Flush every 5 seconds
+  retention_hours: 24         # Keep WAL files for 24 hours
+  sync_writes: false          # false = faster, true = more durable
+
+# ============================================
+# INPUTS - Log Sources
+# Each input has a unique name for routing
+# ============================================
 inputs:
   # Monitor Docker containers
   - type: docker
-    name: "app-logs"           # Name for routing
+    name: "production-app"
     config:
-      container_filter: "my-app"
-  
-  - type: http
-    name: "api-logs"
-    config:
-      port: "8080"
-
-outputs:
-  # Elasticsearch: All sources, INFO+ levels
-  - type: elasticsearch
-    name: "main-index"
-    sources: []                # Empty = all sources
-    filters:
-      - type: level
-        config:
-          levels: ["INFO", "WARN", "ERROR"]
-    config:
-      addresses:
-        - "http://elasticsearch:9200"
-      index: "logs-{yyyy.MM.dd}"
-      batch_size: 50
-  
-  # Prometheus: Only docker logs, no filters
-  - type: prometheus
-    name: "metrics"
-    sources: ["app-logs"]      # Only from app-logs
-    filters: []
-    config:
-      port: 9091
-  
-  # Console: All sources, ERROR only
-  - type: console
-    name: "errors"
-    sources: []
-    filters:
-      - type: level
-        config:
-          levels: ["ERROR"]
-    config:
-      format: "json"
-```
-
-## 🔄 Hot Reload
-
-LogAnalyzer supports **hot reload** of configuration files, allowing you to modify your pipeline configuration without restarting the application. This is perfect for development, testing, and production environments where you need to adjust filtering, routing, or output settings dynamically.
-
-### How It Works
-
-When hot reload is enabled, LogAnalyzer monitors the configuration file for changes using filesystem events. When a change is detected:
-
-1. **File Change Detection**: The watcher detects modifications to the config file
-2. **Graceful Shutdown**: Current engine stops all inputs and outputs cleanly
-3. **Configuration Reload**: New configuration is loaded and validated
-4. **Engine Recreation**: A new engine is created with the updated configuration
-5. **Seamless Restart**: All plugins restart with zero downtime for log processing
-
-### Usage
-
-```bash
-# Enable hot reload
-./loganalyzer -config config.yaml -hot-reload
-
-# The application will now automatically reload when config.yaml changes
-```
-
-### Benefits
-
-- **Zero Downtime**: Configuration changes take effect immediately without service interruption
-- **Development Friendly**: Test configuration changes instantly during development
-- **Production Safe**: Adjust filtering, routing, or outputs without deployment
-- **Error Handling**: Invalid configurations are logged but don't crash the application
-- **Automatic Recovery**: Continues running with previous valid configuration if reload fails
-
-### Example Workflow
-
-```bash
-# Start with hot reload
-./loganalyzer -config config.yaml -hot-reload
-
-# In another terminal, edit the config
-vim config.yaml  # Add new filters, change outputs, etc.
-
-# Save the file - LogAnalyzer automatically detects and reloads
-# Check logs: "Config file changed, reloading..."
-# Check logs: "Engine configuration reloaded successfully"
-```
-
-### Limitations
-
-- Only works with file-based configurations (not environment variables or flags)
-- Requires the config file to be accessible and writable by the process
-- Large configuration changes may cause brief pauses during reload
-- Some plugins may require manual restart for certain configuration changes
-
-### Docker Container Filtering
-
-```yaml
-inputs:
-  - type: docker
-    name: "my-containers"
-    config:
-      # Option 1: Single container (string)
-      container_filter: "my-app"
-      
-      # Option 2: Multiple containers (array)
-      # container_filter:
-      #   - "app-*"
-      #   - "service-*"
-      #   - "worker-*"
-      
+      container_filter: ["nginx-*", "webapp-*"]  # String or array
       stream: "stdout"
-```
 
-### Advanced Multi-Pipeline
-
-```yaml
-inputs:
-  - type: docker
-    name: "web-app"
-    config:
-      container_filter: ["nginx", "webapp"]
-  
-  - type: docker
-    name: "api-service"
-    config:
-      container_filter: "api-*"
-  
+  # HTTP endpoint for external logs
   - type: http
-    name: "external"
+    name: "external-api"
     config:
       port: "8080"
-  
+
+  # Kafka consumer
   - type: kafka
-    name: "stream-logs"
+    name: "event-stream"
     config:
       brokers: ["kafka:29092"]
       topic: "application-logs"
       group_id: "loganalyzer-group"
       start_offset: "latest"
+      # Resilience (optional - enabled by default)
+      resilient: true
+      retry_interval: 10        # Retry every 10s
+      max_retries: 0            # 0 = never give up
+      health_check_interval: 30 # Health check every 30s
 
-outputs:
-  # Critical alerts to Slack (all sources)
-  - type: slack
-    name: "alerts"
-    sources: []
-    filters:
-      - type: level
-        config:
-          levels: ["ERROR"]
-      - type: regex
-        config:
-          patterns: ["CRITICAL", "FATAL"]
-          mode: "include"
+  # Tail log files
+  - type: file
+    name: "legacy-logs"
     config:
-      webhook_url: "https://hooks.slack.com/..."
-      channel: "#alerts"
-  
-  # Web logs to Elasticsearch
+      path: "/var/log/app.log"
+      encoding: "utf-8"
+
+# ============================================
+# OUTPUTS - Log Destinations (Pipelines)
+# Each output is an independent pipeline
+# ============================================
+outputs:
+  # Pipeline 1: All logs to Elasticsearch
   - type: elasticsearch
-    name: "web-index"
-    sources: ["web-app"]
+    name: "main-index"
+    sources: []                   # Empty = accept all sources
     filters:
       - type: level
         config:
           levels: ["INFO", "WARN", "ERROR"]
+      - type: json                # Parse JSON from message field
+        config:
+          field: "message"
+          flatten: true
     config:
-      index: "web-{yyyy.MM.dd}"
-  
-  # Kafka stream logs to separate index
+      addresses: ["http://elasticsearch:9200"]
+      index: "logs-{yyyy.MM.dd}"  # Date-based index
+      username: "elastic"
+      password: "changeme"
+      batch_size: 50
+      timeout: 30
+      # Output buffering (optional - enabled by default)
+      buffer:
+        enabled: true
+        queue_size: 1000
+        max_retries: 5
+        retry_delay: 1            # Exponential: 1s → 2s → 4s → 8s → 16s
+        dlq_enabled: true         # Save failed logs
+        dlq_file: "elasticsearch-main-dlq.jsonl"
+      # Resilience (optional - enabled by default)
+      resilient: true
+      retry_interval: 10
+      max_retries: 0
+      health_check_interval: 30
+
+  # Pipeline 2: Production errors to Slack (rate limited)
+  - type: slack
+    name: "critical-alerts"
+    sources: ["production-app"]   # Only from production-app
+    filters:
+      - type: level
+        config:
+          levels: ["ERROR"]
+      - type: rate_limit          # Prevent alert spam
+        config:
+          rate: 5.0               # Max 5 logs/second
+          burst: 20               # Allow bursts up to 20
+    config:
+      webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+      channel: "#alerts"
+      username: "LogBot"
+      icon_emoji: ":fire:"
+      buffer:
+        enabled: true
+        queue_size: 100
+        max_retries: 3
+        dlq_enabled: true
+
+  # Pipeline 3: Kafka events to separate index
   - type: elasticsearch
-    name: "kafka-index"
-    sources: ["stream-logs"]
+    name: "kafka-events"
+    sources: ["event-stream"]     # Only from Kafka
     filters:
       - type: json
         config:
           field: "message"
           flatten: true
+          ignore_errors: false
     config:
-      index: "kafka-logs-{yyyy.MM.dd}"
-  
-  # API metrics to Prometheus
+      addresses: ["http://elasticsearch:9200"]
+      index: "events-{yyyy.MM.dd}"
+      batch_size: 100
+
+  # Pipeline 4: Prometheus metrics (all sources, no filters)
   - type: prometheus
-    name: "api-metrics"
-    sources: ["api-service"]
+    name: "metrics-exporter"
+    sources: []
     filters: []
     config:
       port: 9091
+      # Exposes: loganalyzer_logs_total{level="debug|info|warn|error"}
+
+  # Pipeline 5: Debug console output
+  - type: console
+    name: "debug-output"
+    sources: ["external-api"]
+    filters:
+      - type: regex
+        config:
+          patterns: ["DEBUG", "TRACE"]
+          mode: "include"
+          field: "message"
+    config:
+      target: "stdout"            # stdout or stderr
+      format: "json"              # json or text
+
+  # Pipeline 6: Archive all logs to file
+  - type: file
+    name: "archive"
+    sources: []                   # All sources
+    filters: []                   # No filtering
+    config:
+      file_path: "/var/log/loganalyzer/archive.log"
+      buffer:
+        enabled: true
+        queue_size: 500
 ```
+
+## 🏗️ Architecture
+
+LogAnalyzer uses a pipeline architecture where each output is independent:
+
+```
+┌─────────────────────────────────────────────────┐
+│ INPUTS (Named Sources)                          │
+├─────────────────────────────────────────────────┤
+│ docker → "production-app"                       │
+│ http → "external-api"                           │  
+│ kafka → "event-stream"                          │
+│ file → "legacy-logs"                            │
+└──────────────────┬──────────────────────────────┘
+                   ↓
+         ┌─────────────────┐
+         │  Engine Router  │ ← Routes logs by source name
+         │  (Source Filter)│
+         └─────────────────┘
+                   ↓
+┌──────────────────┴───────────────────────────────┐
+│ OUTPUTS (Independent Pipelines)                  │
+├──────────────────────────────────────────────────┤
+│ Pipeline 1: Elasticsearch                        │
+│   ├─ sources: [] (all)                           │
+│   ├─ filters: [level: INFO+, json]               │
+│   └─ buffer + resilience                         │
+│                                                   │
+│ Pipeline 2: Slack                                │
+│   ├─ sources: ["production-app"]                 │
+│   ├─ filters: [level: ERROR, rate_limit]         │
+│   └─ buffer + resilience                         │
+│                                                   │
+│ Pipeline 3: Prometheus                           │
+│   ├─ sources: [] (all)                           │
+│   └─ filters: none                               │
+│                                                   │
+│ Pipeline 4: Console                              │
+│   ├─ sources: ["external-api"]                   │
+│   └─ filters: [regex: DEBUG]                     │
+└──────────────────────────────────────────────────┘
+```
+
+**Key Concepts:**
+- **Named Inputs**: Each input has a unique name (source identifier)
+- **Source Routing**: Outputs specify which sources to accept (`sources: []` = all)
+- **Independent Filters**: Each output applies its own filter chain
+- **Parallel Processing**: Matching outputs process the same log simultaneously
+
+## 🔄 Production Features
+
+### 1. Plugin Resilience (High Availability)
+
+**Service starts and operates even when dependencies are unavailable.**
+
+**Configuration** (optional - enabled by default):
+```yaml
+outputs:
+  - type: elasticsearch
+    config:
+      resilient: true           # Default: true
+      retry_interval: 10        # Retry every 10s
+      max_retries: 0            # 0 = never give up (default)
+      health_check_interval: 30 # Health check every 30s
+```
+
+**How it works:**
+1. Service starts immediately (non-blocking initialization)
+2. Failed plugins retry in background with exponential backoff:
+   - 10s → 20s → 40s → 80s → 120s (max)
+3. Health checks detect recovery and automatically reconnect
+4. Other plugins operate normally during outages
+
+**Example logs:**
+```
+[RESILIENCE:elasticsearch] Attempting to initialize (attempt 1)
+[RESILIENCE:elasticsearch] Failed: connection refused
+[RESILIENCE:elasticsearch] Retrying in 10s...
+[RESILIENCE:elasticsearch] Successfully initialized
+[RESILIENCE:elasticsearch] Health check passed, plugin recovered
+```
+
+### 2. Output Buffering (Zero Log Loss)
+
+**Automatic retry with Dead Letter Queue for failed deliveries.**
+
+**Configuration** (optional - enabled by default):
+```yaml
+outputs:
+  - type: elasticsearch
+    config:
+      buffer:
+        enabled: true
+        queue_size: 1000        # In-memory queue
+        max_retries: 5          # Retry up to 5 times
+        retry_delay: 1          # Initial delay (exponential backoff)
+        dlq_enabled: true       # Save failed logs
+        dlq_file: "failed-logs.jsonl"
+```
+
+**How it works:**
+1. Delivery fails → Queued in memory
+2. Retry with exponential backoff: 1s → 2s → 4s → 8s → 16s
+3. After max retries → Saved to Dead Letter Queue file
+4. Continue processing new logs without blocking
+
+**📖 Full documentation:** [OUTPUT_BUFFERING.md](OUTPUT_BUFFERING.md)
+
+### 3. Write-Ahead Logging (Crash Recovery)
+
+**Persist logs to disk before processing to prevent loss during crashes.**
+
+**Configuration:**
+```yaml
+persistence:
+  enabled: true
+  dir: "./data/wal"
+  buffer_size: 100              # Buffer 100 logs before flush
+  flush_interval: 5             # Flush every 5 seconds
+  retention_hours: 24           # Keep for 24 hours
+  sync_writes: false            # false = faster, true = more durable
+```
+
+**How it works:**
+1. Log arrives → Written to WAL file
+2. Process through pipeline
+3. On restart → Recover all unprocessed logs from WAL
+4. Old WAL files auto-deleted after retention period
+
+### 4. Hot Reload (Zero Downtime Configuration)
+
+**Update configuration without restarting.**
+
+```bash
+./loganalyzer -config config.yaml -hot-reload
+```
+
+**What happens:**
+1. Edit `config.yaml` and save
+2. Engine detects change and reloads automatically
+3. All plugins gracefully restart with new config
+4. No logs dropped during reload
 
 ## 🔌 Plugin Reference
 
-### Docker Input
+### Input Plugins
+
+#### Docker
+Monitor Docker container logs with filtering:
 
 ```yaml
 - type: docker
-  name: "docker-logs"
+  name: "my-app"
   config:
-    # Filter by name (string or array)
-    container_filter: "my-app"
-    # OR
-    # container_filter: ["app1", "app2"]
+    # Single container
+    container_filter: "nginx"
     
-    # Filter by IDs
-    # container_ids: ["abc123"]
+    # OR multiple containers
+    # container_filter: ["nginx-*", "webapp-*", "api-*"]
     
-    # Filter by labels
+    # OR by container IDs
+    # container_ids: ["abc123", "def456"]
+    
+    # OR by labels
     # labels:
     #   app: "myapp"
+    #   env: "production"
     
-    stream: "stdout"  # stdout, stderr, both
+    stream: "stdout"  # stdout, stderr, or both
 ```
 
-**Priority**: container_ids > container_filter > all containers
+**Priority:** `container_ids` > `container_filter` > `labels` > all containers
 
-### Elasticsearch Output
-
-```yaml
-- type: elasticsearch
-  name: "logs"
-  sources: ["docker-logs"]
-  filters:
-    - type: level
-      config:
-        levels: ["INFO", "WARN", "ERROR"]
-  config:
-    addresses:
-      - "http://elasticsearch:9200"
-    index: "logs-{yyyy.MM.dd}"
-    username: "elastic"      # Optional
-    password: "changeme"     # Optional
-    batch_size: 50           # Bulk size
-    timeout: 30              # Seconds
-```
-
-**Index Templates**:
-- `{yyyy.MM.dd}` → 2024.01.15
-- `{yyyy-MM-dd}` → 2024-01-15
-- `{yyyy.MM}` → 2024.01
-- `{yyyy}` → 2024
-
-### Prometheus Output
-
-```yaml
-- type: prometheus
-  name: "metrics"
-  sources: []
-  filters: []
-  config:
-    port: 9091
-```
-
-**Metrics exposed**:
-- `loganalyzer_logs_total{level="debug|info|warn|error"}`
-
-### Slack Output
-
-```yaml
-- type: slack
-  name: "alerts"
-  sources: []
-  filters:
-    - type: level
-      config:
-        levels: ["ERROR"]
-  config:
-    webhook_url: "https://hooks.slack.com/..."
-    channel: "#alerts"
-    username: "LogBot"
-    icon_emoji: ":fire:"
-```
-
-### Console Output
-
-```yaml
-- type: console
-  name: "debug"
-  sources: []
-  filters: []
-  config:
-    target: "stdout"  # stdout or stderr
-    format: "json"    # json or text
-```
-
-### File Output
-
-```yaml
-- type: file
-  name: "archive"
-  sources: []
-  filters: []
-  config:
-    file_path: "/var/log/archive.log"
-```
-
-### HTTP Input
+#### HTTP
+Accept logs via HTTP POST:
 
 ```yaml
 - type: http
-  name: "api"
+  name: "api-logs"
   config:
     port: "8080"
 ```
 
-**Usage**:
+**Usage:**
 ```bash
 # Plain text
 curl -X POST http://localhost:8080/logs \
@@ -515,64 +412,36 @@ curl -X POST http://localhost:8080/logs \
   -d '{"level":"error","message":"Failed"}'
 ```
 
-### Kafka Input
+#### Kafka
+Consume from Kafka topics:
 
 ```yaml
 - type: kafka
-  name: "kafka-logs"
+  name: "events"
   config:
-    brokers:
-      - "localhost:9092"
-      - "kafka:29092"
+    brokers: ["kafka:29092", "localhost:9092"]
     topic: "application-logs"
-    group_id: "loganalyzer-group"        # Optional: Consumer group
-    start_offset: "latest"               # earliest, latest, or specific offset
-    min_bytes: 1                         # Minimum bytes to fetch
-    max_bytes: 10485760                  # Maximum bytes to fetch (10MB)
-    client_id: "loganalyzer"             # Optional: Client identifier
-    username: "user"                     # Optional: SASL username
-    password: "pass"                     # Optional: SASL password
-    tls: true                            # Optional: Enable TLS
-    insecure_skip_verify: false          # Optional: Skip TLS verification
+    group_id: "loganalyzer-group"    # Consumer group
+    start_offset: "latest"           # earliest, latest, or offset number
+    min_bytes: 1
+    max_bytes: 10485760              # 10MB
+    # Optional SASL authentication
+    # username: "user"
+    # password: "pass"
+    # Optional TLS
+    # tls: true
+    # insecure_skip_verify: false
 ```
 
-**Configuration Options**:
-- `brokers`: Array of Kafka broker addresses (required)
-- `topic`: Kafka topic to consume from (required)
-- `group_id`: Consumer group ID for coordinated consumption (optional)
-- `start_offset`: Where to start consuming - `earliest`, `latest`, or numeric offset (default: `latest`)
-- `min_bytes`: Minimum bytes to accumulate before fetching (default: 1)
-- `max_bytes`: Maximum bytes to fetch in a batch (default: 10MB)
-- `client_id`: Client identifier for Kafka connections (optional)
-- `username`/`password`: SASL authentication credentials (optional)
-- `tls`: Enable TLS encryption (default: false)
-- `insecure_skip_verify`: Skip TLS certificate verification (default: false)
-
-**Metadata Added**:
+**Metadata added:**
 - `topic`: Kafka topic name
 - `partition`: Partition number
 - `offset`: Message offset
 - `key`: Message key (if present)
 - `header.*`: Kafka message headers
 
-**Usage Examples**:
-```bash
-# Send JSON message to Kafka
-echo '{"level":"info","message":"User login","user_id":123}' | \
-  docker exec -i kafka kafka-console-producer \
-    --bootstrap-server localhost:9092 \
-    --topic application-logs
-
-# Send with headers
-echo '{"level":"error","message":"System error"}' | \
-  docker exec -i kafka kafka-console-producer \
-    --bootstrap-server localhost:9092 \
-    --topic application-logs \
-    --property "parse.headers=true" \
-    --property "headers=level:error,service:auth"
-```
-
-### File Input
+#### File
+Tail log files:
 
 ```yaml
 - type: file
@@ -582,7 +451,82 @@ echo '{"level":"error","message":"System error"}' | \
     encoding: "utf-8"
 ```
 
-### Level Filter
+### Output Plugins
+
+#### Elasticsearch
+Send to Elasticsearch with bulk indexing:
+
+```yaml
+- type: elasticsearch
+  name: "logs"
+  config:
+    addresses: ["http://elasticsearch:9200"]
+    index: "logs-{yyyy.MM.dd}"   # Date templates
+    username: "elastic"           # Optional
+    password: "changeme"          # Optional
+    batch_size: 50
+    timeout: 30
+```
+
+**Index templates:**
+- `{yyyy.MM.dd}` → 2024.01.15
+- `{yyyy-MM-dd}` → 2024-01-15
+- `{yyyy.MM}` → 2024.01
+- `{yyyy}` → 2024
+
+#### Prometheus
+Expose metrics endpoint:
+
+```yaml
+- type: prometheus
+  name: "metrics"
+  config:
+    port: 9091
+```
+
+**Metrics exposed:**
+- `loganalyzer_logs_total{level="debug|info|warn|error"}`
+
+Access at: `http://localhost:9091/metrics`
+
+#### Slack
+Send to Slack webhooks:
+
+```yaml
+- type: slack
+  name: "alerts"
+  config:
+    webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+    channel: "#alerts"
+    username: "LogBot"
+    icon_emoji: ":fire:"
+```
+
+#### Console
+Print to stdout/stderr:
+
+```yaml
+- type: console
+  name: "debug"
+  config:
+    target: "stdout"  # stdout or stderr
+    format: "json"    # json or text
+```
+
+#### File
+Write to file:
+
+```yaml
+- type: file
+  name: "archive"
+  config:
+    file_path: "/var/log/archive.log"
+```
+
+### Filter Plugins
+
+#### Level
+Filter by log level:
 
 ```yaml
 - type: level
@@ -590,32 +534,34 @@ echo '{"level":"error","message":"System error"}' | \
     levels: ["DEBUG", "INFO", "WARN", "ERROR"]
 ```
 
-### Regex Filter
+#### Regex
+Filter by regex patterns:
 
 ```yaml
 - type: regex
   config:
-    patterns: ["ERROR.*", "Exception"]
+    patterns: ["ERROR.*", "Exception", "CRITICAL"]
     mode: "include"      # include or exclude
     field: "message"     # message, level, or all
 ```
 
-### JSON Filter
+#### JSON
+Parse JSON from log fields:
 
 ```yaml
 - type: json
   config:
     field: "message"     # Field to parse (default: "message")
     flatten: false       # Flatten nested objects with underscores
-    ignore_errors: false # Ignore parsing errors instead of blocking
+    ignore_errors: false # Ignore parsing errors
 ```
 
-**Examples**:
-- Parse JSON from message: `{"user":"alice","action":"login"}` → metadata: `user=alice, action=login`
-- Flatten nested: `{"user":{"name":"bob"}}` → metadata: `user_name=bob`
-- Parse from metadata field: Use `field: "data"` to parse a different metadata field
+**Examples:**
+- Parse: `{"user":"alice","action":"login"}` → metadata: `user=alice, action=login`
+- Flatten: `{"user":{"name":"bob"}}` → metadata: `user_name=bob`
 
-### Rate Limit Filter
+#### Rate Limit
+Limit logs per second:
 
 ```yaml
 - type: rate_limit
@@ -624,23 +570,15 @@ echo '{"level":"error","message":"System error"}' | \
     burst: 50      # Maximum burst size (int)
 ```
 
-**Configuration Options**:
-- `rate`: Number of logs allowed per second (required, float)
-- `burst`: Maximum token bucket capacity (required, int). Up to `burst` logs can pass through immediately when the bucket is full; rate limiting is always in effect.
+**How it works:**
+- Token bucket algorithm
+- Bucket holds up to `burst` tokens
+- Tokens refill at `rate` per second
+- Logs exceeding available tokens are dropped
 
-**How it works**:
-- Uses a token bucket algorithm to control the flow of logs
-- The bucket can hold up to `burst` tokens; if full, up to `burst` logs can pass through immediately. After that, tokens are refilled at the `rate` per second.
-- Rate limiting is always in effect; logs that exceed the available tokens are dropped (not passed to the output)
-- Useful for preventing overload of external systems like APIs, databases, or notification services
+## 💡 Common Use Cases
 
-**Examples**:
-- Limit to 5 logs per second with burst of 20: `rate: 5.0, burst: 20`
-- Allow bursts but sustain 1 log per second: `rate: 1.0, burst: 10`
-
-## 💡 Use Cases
-
-### Use Case 1: Multi-Environment
+### Multi-Environment Logging
 
 ```yaml
 # Production errors → Slack
@@ -650,6 +588,7 @@ inputs:
     name: "prod"
     config:
       labels: {env: "production"}
+  
   - type: docker
     name: "staging"
     config:
@@ -666,15 +605,14 @@ outputs:
   
   - type: console
     sources: ["staging"]
-    filters: []
     config: {format: "json"}
 ```
 
-### Use Case 2: Compliance
+### Compliance & Auditing
 
 ```yaml
-# All logs → Audit
-# Errors → Alerts
+# All logs → Long-term storage
+# Errors → Real-time alerts
 outputs:
   - type: elasticsearch
     name: "audit"
@@ -693,49 +631,17 @@ outputs:
       webhook_url: "..."
 ```
 
-### Use Case 3: Performance Monitoring
-
-```yaml
-# Web → Prometheus
-# DB errors → Elasticsearch
-inputs:
-  - type: docker
-    name: "web"
-    config:
-      container_filter: ["nginx-*", "webapp-*"]
-  - type: docker
-    name: "db"
-    config:
-      container_filter: "postgres-*"
-
-outputs:
-  - type: prometheus
-    sources: ["web"]
-    filters: []
-    config: {port: 9091}
-  
-  - type: elasticsearch
-    sources: ["db"]
-    filters:
-      - type: level
-        config: {levels: ["ERROR", "WARN"]}
-    config:
-      index: "db-errors-{yyyy.MM.dd}"
-```
-
-### Use Case 4: Event Streaming & Microservices
+### Event Streaming & Microservices
 
 ```yaml
 # Kafka streams → Elasticsearch with JSON parsing
-# Application logs → Metrics
+# Application logs → Prometheus metrics
 inputs:
   - type: kafka
-    name: "event-stream"
+    name: "events"
     config:
       brokers: ["kafka:29092"]
       topic: "user-events"
-      group_id: "loganalyzer-events"
-      start_offset: "latest"
   
   - type: docker
     name: "microservices"
@@ -743,10 +649,9 @@ inputs:
       container_filter: ["auth-*", "payment-*", "notification-*"]
 
 outputs:
-  # Parse and index Kafka events
   - type: elasticsearch
-    name: "events-index"
-    sources: ["event-stream"]
+    name: "events"
+    sources: ["events"]
     filters:
       - type: json
         config:
@@ -755,31 +660,15 @@ outputs:
     config:
       index: "events-{yyyy.MM.dd}"
   
-  # Application metrics
   - type: prometheus
-    name: "app-metrics"
+    name: "metrics"
     sources: ["microservices"]
-    filters:
-      - type: level
-        config: {levels: ["INFO", "WARN", "ERROR"]}
     config: {port: 9091}
-  
-  # Critical errors to Slack
-  - type: slack
-    name: "critical-alerts"
-    sources: []
-    filters:
-      - type: level
-        config: {levels: ["ERROR"]}
-      - type: regex
-        config:
-          patterns: ["CRITICAL", "DOWN", "FAILED"]
-          mode: "include"
-    config:
-      webhook_url: "..."
 ```
 
-## 🛠️ Creating Custom Plugins
+## 🛠️ Development
+
+### Creating Custom Plugins
 
 ```go
 package myplugin
@@ -787,6 +676,7 @@ package myplugin
 import "github.com/mbiondo/logAnalyzer/core"
 
 func init() {
+    // Auto-register plugin
     core.RegisterOutputPlugin("myplugin", NewMyPluginFromConfig)
 }
 
@@ -817,22 +707,22 @@ func (p *MyPlugin) Close() error {
 }
 ```
 
-Then add the import to the appropriate aggregator file in `plugins/`:
+**Add to aggregator file:**
 ```go
-// For output plugins, add to plugins/output/all.go
+// For output plugins: plugins/output/all.go
 import _ "github.com/mbiondo/logAnalyzer/plugins/output/myplugin"
 
-// For input plugins, add to plugins/input/all.go
+// For input plugins: plugins/input/all.go  
 import _ "github.com/mbiondo/logAnalyzer/plugins/input/myplugin"
 
-// For filter plugins, add to plugins/filter/all.go
+// For filter plugins: plugins/filter/all.go
 import _ "github.com/mbiondo/logAnalyzer/plugins/filter/myplugin"
 ```
 
-## 📚 Interfaces
+### Plugin Interfaces
 
-### Log Structure
 ```go
+// Log structure
 type Log struct {
     Timestamp time.Time
     Level     string
@@ -840,100 +730,130 @@ type Log struct {
     Metadata  map[string]string
     Source    string  // Input name
 }
-```
 
-### InputPlugin
-```go
+// InputPlugin interface
 type InputPlugin interface {
     Start() error
     Stop() error
     SetLogChannel(ch chan<- *Log)
 }
-```
 
-### OutputPlugin
-```go
+// OutputPlugin interface
 type OutputPlugin interface {
     Write(log *Log) error
     Close() error
 }
-```
 
-### FilterPlugin
-```go
+// FilterPlugin interface
 type FilterPlugin interface {
-    Process(log *Log) bool
+    Process(log *Log) bool  // true = pass, false = block
 }
 ```
 
-## 🧪 Testing
+### Build Scripts
 
 ```bash
-# All tests
+# Linux/Mac
+./build.sh              # Build only
+./build.sh --test       # Build with tests
+./build.sh --clean      # Clean and build
+
+# Windows
+.\build.ps1             # Build only
+.\build.ps1 -Test       # Build with tests
+.\build.ps1 -Clean      # Clean and build
+```
+
+### Testing
+
+```bash
+# Run all tests
 go test ./...
 
-# Specific package
-go test ./core -v
-go test ./plugins/input/docker -v
-go test ./plugins/input/kafka -v
+# With race detector (recommended)
+go test -race ./...
 
-# Coverage
+# With coverage
 go test -cover ./...
+
+# Specific package
+go test -race -v ./core
 ```
 
-## 📁 Project Structure
+**Test Results:**
+- **Coverage**: 71.3% of statements
+- **Total Tests**: 79+ tests
+- **Race Conditions**: ✅ None detected
+
+**📖 Full test report:** [TESTING_REPORT.md](TESTING_REPORT.md)
+
+### Docker
+
+```bash
+# Build image
+docker build -t loganalyzer:latest .
+
+# Run with config
+docker run -v $(pwd)/config.yaml:/config.yaml \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  loganalyzer:latest -config /config.yaml
+```
+
+## 📚 Documentation
+
+- **[OUTPUT_BUFFERING.md](OUTPUT_BUFFERING.md)** - Output buffering, retry, and DLQ guide
+- **[TESTING_REPORT.md](TESTING_REPORT.md)** - Test coverage and race condition analysis
+- **[PROJECT_INFO.md](PROJECT_INFO.md)** - Project structure and development guide
+- **[examples/README.md](examples/README.md)** - Complete Docker example setup
+
+## 📦 Project Structure
 
 ```
-log-analyzer/
-├── cmd/
-│   └── main.go                 # Entry point
-├── core/
-│   ├── config.go               # Config structures
+logAnalyzer/
+├── cmd/                        # Application entry point
+│   └── main.go
+├── core/                       # Core engine
+│   ├── config.go               # Configuration
 │   ├── engine.go               # Pipeline engine
 │   ├── log.go                  # Log structure
-│   └── registry.go             # Plugin registry
+│   ├── registry.go             # Plugin registry
+│   ├── persistence.go          # Write-Ahead Logging
+│   ├── output_buffer.go        # Retry + DLQ
+│   ├── plugin_resilience.go    # Resilience framework
+│   ├── plugin_wrappers.go      # Resilient wrappers
+│   ├── config_watcher.go       # Hot reload
+│   └── *_test.go               # Tests (71.3% coverage)
 ├── plugins/
 │   ├── input/                  # Input plugins
-│   │   ├── all.go              # Input plugin aggregator
-│   │   ├── docker/             # Docker input plugin
-│   │   ├── file/               # File input plugin
-│   │   ├── http/               # HTTP input plugin
-│   │   └── kafka/              # Kafka input plugin
+│   │   ├── docker/
+│   │   ├── http/
+│   │   ├── kafka/
+│   │   └── file/
 │   ├── output/                 # Output plugins
-│   │   ├── all.go              # Output plugin aggregator
-│   │   ├── console/            # Console output plugin
-│   │   ├── elasticsearch/      # Elasticsearch output plugin
-│   │   ├── file/               # File output plugin
-│   │   ├── prometheus/         # Prometheus output plugin
-│   │   └── slack/              # Slack output plugin
+│   │   ├── elasticsearch/
+│   │   ├── prometheus/
+│   │   ├── slack/
+│   │   ├── console/
+│   │   └── file/
 │   └── filter/                 # Filter plugins
-│       ├── all.go              # Filter plugin aggregator
-│       ├── json/               # JSON filter plugin
-│       ├── level/              # Level filter plugin
-│       ├── rate_limit/         # Rate limit filter plugin
-│       └── regex/              # Regex filter plugin
-├── examples/                   # Complete working example
-│   ├── docker-compose.yml      # All services
-│   ├── loganalyzer.yaml        # Pipeline config
-│   ├── prometheus.yml          # Prometheus config
-│   ├── grafana/                # Dashboards & datasources
-│   └── README.md               # Setup guide
-└── README.md                   # Main documentation
+│       ├── level/
+│       ├── regex/
+│       ├── json/
+│       └── rate_limit/
+├── examples/                   # Complete Docker setup
+│   ├── docker-compose.yml
+│   ├── loganalyzer.yaml
+│   ├── grafana/                # Pre-configured dashboards
+│   └── README.md
+├── build.sh / build.ps1        # Build scripts
+├── Dockerfile
+└── README.md
 ```
-
-## ✨ Benefits
-
-- ✅ **Flexible Routing**: Logs from specific sources to specific outputs
-- ✅ **Per-Output Filtering**: Different rules for different outputs
-- ✅ **Container Isolation**: Monitor only specific containers
-- ✅ **Efficient Processing**: Logs only processed by relevant pipelines
-- ✅ **Extensibility**: Add plugins without core changes
-- ✅ **Clear Configuration**: Declarative pipeline definitions
 
 ## 📄 License
 
-MIT License
+MIT License - see [LICENSE](LICENSE) file
 
 ---
 
-Built with ❤️ using Go
+**Built with ❤️ using Go 1.23** • [GitHub](https://github.com/mbiondo/logAnalyzer) • [Issues](https://github.com/mbiondo/logAnalyzer/issues)

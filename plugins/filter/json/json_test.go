@@ -20,7 +20,7 @@ func TestJsonFilter_Process(t *testing.T) {
 				Field: "message",
 			},
 			inputLog: &core.Log{
-				Message: `{"user": "alice", "action": "login"}`,
+				Message:  `{"user": "alice", "action": "login"}`,
 				Metadata: map[string]string{},
 			},
 			expectedPass: true,
@@ -36,7 +36,7 @@ func TestJsonFilter_Process(t *testing.T) {
 				Flatten: true,
 			},
 			inputLog: &core.Log{
-				Message: `{"user": {"name": "bob", "id": 123}}`,
+				Message:  `{"user": {"name": "bob", "id": 123}}`,
 				Metadata: map[string]string{},
 			},
 			expectedPass: true,

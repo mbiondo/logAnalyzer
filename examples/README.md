@@ -44,7 +44,11 @@ docker-compose down
 ### Clean Volumes (Reset)
 
 ```bash
+# Stop and remove all volumes (including WAL persistence data)
 docker-compose down -v
+
+# Or keep persistence data (only remove containers)
+docker-compose down
 ```
 
 ## 📊 Access Services
@@ -71,8 +75,22 @@ docker-compose down -v
 3. **Prometheus** (9090) - Metrics collection
 4. **Grafana** (3000) - Unified dashboards
 5. **Kafka** (9092) - Log streaming and messaging
-6. **LogAnalyzer** (8080, 9091) - Log processing with pipelines
+6. **LogAnalyzer** (8080, 9091) - Log processing with:
+   - **Write-Ahead Logging (WAL)** - Crash recovery
+   - **Output Buffering** - Retry logic with DLQ
+   - **Plugin Resilience** - Auto-reconnection
 7. **Demo App** - Generates sample logs
+
+### Resilience Features
+
+LogAnalyzer is configured with **Write-Ahead Logging (WAL)** for log durability:
+
+- 📝 **All logs persisted** before processing
+- 💾 **Automatic recovery** on restart
+- 🔄 **Buffer size**: 100 logs
+- ⏱️ **Flush interval**: 5 seconds
+- 🗂️ **Retention**: 24 hours
+- 📦 **Volume**: `loganalyzer_wal` (Docker named volume)
 
 ### LogAnalyzer Pipelines
 
@@ -111,6 +129,14 @@ examples/
 ## 🔧 Configuration Details
 
 ### LogAnalyzer Pipeline (loganalyzer.yaml)
+
+**Persistence (WAL):**
+- **Enabled**: Yes - logs persisted to `/data/wal` before processing
+- **Buffer**: 100 logs (automatic flush)
+- **Flush interval**: 5 seconds
+- **Max file size**: 100MB (auto-rotation)
+- **Retention**: 24 hours
+- **Sync writes**: Disabled (better performance)
 
 **Inputs:**
 - `docker-demo`: Monitors demo-app container logs
@@ -312,6 +338,36 @@ outputs:
 ```
 
 ## 🐛 Troubleshooting
+
+### Verify Persistence (WAL)
+
+```bash
+# Check WAL files inside container
+docker exec loganalyzer-service ls -lh /data/wal/
+
+# Check persistence logs
+docker logs loganalyzer-service 2>&1 | grep -i "persistence\|recovery\|wal"
+
+# Windows PowerShell
+docker logs loganalyzer-service 2>&1 | Select-String "persistence|recovery|wal" -CaseSensitive:$false
+
+# Test recovery - restart LogAnalyzer
+docker-compose restart loganalyzer
+
+# Watch recovery logs
+docker logs loganalyzer-service -f
+# You should see: "Found X WAL files for recovery"
+# and "Recovery complete: X logs recovered from Y files"
+
+# Check WAL volume on host
+docker volume inspect loganalyzer_wal
+
+# View WAL volume location
+docker volume inspect loganalyzer_wal | grep Mountpoint
+
+# Windows PowerShell
+docker volume inspect loganalyzer_wal | Select-String "Mountpoint"
+```
 
 ### Elasticsearch not healthy
 
