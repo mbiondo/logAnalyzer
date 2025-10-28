@@ -19,6 +19,7 @@ import (
 func main() {
 	// Command line flags
 	configFile := flag.String("config", "", "Path to configuration file (YAML)")
+	hotReload := flag.Bool("hot-reload", false, "Enable hot reload of configuration file")
 	flag.Parse()
 
 	// Load configuration
@@ -62,10 +63,33 @@ func main() {
 	// Start engine
 	engine.Start()
 
+	// Initialize hot reload if enabled and config file is specified
+	var configWatcher *core.ConfigWatcher
+	if *hotReload && *configFile != "" {
+		var err error
+		configWatcher, err = core.NewConfigWatcher(*configFile, func(newConfig *core.Config) {
+			// Reload engine with new configuration
+			if err := engine.ReloadConfig(newConfig, createInputPluginWrapper, createOutputPipelineWrapper); err != nil {
+				log.Printf("Error reloading configuration: %v", err)
+			}
+		})
+		if err != nil {
+			log.Printf("Warning: Failed to initialize config watcher: %v", err)
+			log.Println("Continuing without hot reload")
+		} else {
+			log.Println("Hot reload enabled for config file:", *configFile)
+		}
+	}
+
 	// Wait for shutdown signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
+
+	// Stop config watcher if running
+	if configWatcher != nil {
+		configWatcher.Stop()
+	}
 
 	// Stop engine
 	engine.Stop()
@@ -117,4 +141,12 @@ func createOutputPipeline(name string, outputDef core.PluginDefinition, engine *
 	engine.AddOutputPipeline(pipeline)
 	log.Printf("Using %s output plugin as '%s' (sources: %v, filters: %d)",
 		outputDef.Type, name, outputDef.Sources, len(filters))
+}
+
+func createInputPluginWrapper(pluginType string, name string, config map[string]any, engine *core.Engine) {
+	createInputPlugin(pluginType, name, config, engine)
+}
+
+func createOutputPipelineWrapper(name string, outputDef core.PluginDefinition, engine *core.Engine) {
+	createOutputPipeline(name, outputDef, engine)
 }

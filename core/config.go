@@ -3,7 +3,10 @@ package core
 import (
 	"fmt"
 	"os"
+	"sync"
+	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"gopkg.in/yaml.v3"
 )
 
@@ -75,4 +78,132 @@ func DefaultConfig() *Config {
 			},
 		},
 	}
+}
+
+// ConfigWatcher monitors a config file for changes and triggers reloads
+type ConfigWatcher struct {
+	filename    string
+	watcher     *fsnotify.Watcher
+	onReload    func(*Config)
+	stopCh      chan struct{}
+	wg          sync.WaitGroup
+	lastModTime time.Time
+	mu          sync.Mutex
+}
+
+// NewConfigWatcher creates a new config file watcher
+func NewConfigWatcher(filename string, onReload func(*Config)) (*ConfigWatcher, error) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create file watcher: %w", err)
+	}
+
+	// Get initial file modification time
+	info, err := os.Stat(filename)
+	if err != nil {
+		watcher.Close()
+		return nil, fmt.Errorf("failed to stat config file: %w", err)
+	}
+
+	cw := &ConfigWatcher{
+		filename:    filename,
+		watcher:     watcher,
+		onReload:    onReload,
+		stopCh:      make(chan struct{}),
+		lastModTime: info.ModTime(),
+	}
+
+	// Watch the directory containing the config file
+	// This handles cases where the file is replaced atomically
+	dir := filename
+	if idx := len(filename) - 1; idx >= 0 {
+		for i := idx; i >= 0; i-- {
+			if filename[i] == '/' || filename[i] == '\\' {
+				dir = filename[:i]
+				break
+			}
+		}
+	}
+
+	if err := watcher.Add(dir); err != nil {
+		watcher.Close()
+		return nil, fmt.Errorf("failed to watch directory: %w", err)
+	}
+
+	cw.wg.Add(1)
+	go cw.watchLoop()
+
+	return cw, nil
+}
+
+// Stop stops the config watcher
+func (cw *ConfigWatcher) Stop() {
+	close(cw.stopCh)
+	cw.watcher.Close()
+	cw.wg.Wait()
+}
+
+// watchLoop runs the file watching loop
+func (cw *ConfigWatcher) watchLoop() {
+	defer cw.wg.Done()
+
+	for {
+		select {
+		case event, ok := <-cw.watcher.Events:
+			if !ok {
+				return
+			}
+
+			// Check if the event is for our config file
+			if event.Name != cw.filename {
+				continue
+			}
+
+			// Only react to write events
+			if event.Op&fsnotify.Write == fsnotify.Write {
+				cw.handleFileChange()
+			}
+
+		case err, ok := <-cw.watcher.Errors:
+			if !ok {
+				return
+			}
+			fmt.Printf("Config watcher error: %v\n", err)
+
+		case <-cw.stopCh:
+			return
+		}
+	}
+}
+
+// handleFileChange handles a config file change event
+func (cw *ConfigWatcher) handleFileChange() {
+	cw.mu.Lock()
+	defer cw.mu.Unlock()
+
+	// Check if file was actually modified (avoid duplicate events)
+	info, err := os.Stat(cw.filename)
+	if err != nil {
+		fmt.Printf("Error checking config file: %v\n", err)
+		return
+	}
+
+	if info.ModTime().Equal(cw.lastModTime) {
+		return // No actual change
+	}
+
+	cw.lastModTime = info.ModTime()
+
+	// Small delay to ensure file write is complete
+	time.Sleep(100 * time.Millisecond)
+
+	// Load new config
+	config, err := LoadConfig(cw.filename)
+	if err != nil {
+		fmt.Printf("Error reloading config: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Config file changed, reloading...\n")
+	cw.onReload(config)
 }
