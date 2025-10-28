@@ -304,8 +304,10 @@ func (ob *OutputBuffer) requeueForRetry(bufferedLog *BufferedLog) {
 
 // calculateBackoff calculates exponential backoff delay
 func (ob *OutputBuffer) calculateBackoff(attempts int) time.Duration {
-	if attempts == 0 {
-		return ob.config.RetryInterval
+	// For the first retry (attempts=1), use base interval
+	// For subsequent retries, use exponential backoff: 2x, 4x, 8x, etc.
+	if attempts < 1 {
+		attempts = 1
 	}
 
 	// Cap attempts to prevent integer overflow (2^10 = 1024x is already very large)
