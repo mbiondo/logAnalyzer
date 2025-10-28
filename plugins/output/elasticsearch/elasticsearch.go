@@ -86,10 +86,10 @@ func NewElasticsearchOutput(config Config) (*ElasticsearchOutput, error) {
 
 	// Test connection (non-blocking - just log if fails)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.Timeout)*time.Second)
+	defer cancel()
 	res, err := client.Info(client.Info.WithContext(ctx))
 
 	if err != nil {
-		cancel()
 		log.Printf("[ELASTICSEARCH] Initial connection test failed: %v (will retry in background)", err)
 		// Don't fail initialization - resilience layer will handle reconnection
 	} else {
@@ -98,11 +98,9 @@ func NewElasticsearchOutput(config Config) (*ElasticsearchOutput, error) {
 		}()
 
 		if res.IsError() {
-			cancel()
 			log.Printf("[ELASTICSEARCH] Initial connection returned error: %s (will retry in background)", res.String())
 			// Don't fail initialization - resilience layer will handle reconnection
 		} else {
-			cancel()
 			log.Printf("[ELASTICSEARCH] Successfully connected to Elasticsearch")
 		}
 	}
