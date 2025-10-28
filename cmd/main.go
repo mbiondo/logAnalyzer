@@ -11,19 +11,9 @@ import (
 	"github.com/mbiondo/logAnalyzer/core"
 
 	// Import plugins for auto-registration
-	_ "github.com/mbiondo/logAnalyzer/plugins/filter/json"
-	_ "github.com/mbiondo/logAnalyzer/plugins/filter/level"
-	_ "github.com/mbiondo/logAnalyzer/plugins/filter/rate_limit"
-	_ "github.com/mbiondo/logAnalyzer/plugins/filter/regex"
-	_ "github.com/mbiondo/logAnalyzer/plugins/input/docker"
-	_ "github.com/mbiondo/logAnalyzer/plugins/input/file"
-	_ "github.com/mbiondo/logAnalyzer/plugins/input/http"
-	_ "github.com/mbiondo/logAnalyzer/plugins/input/kafka"
-	_ "github.com/mbiondo/logAnalyzer/plugins/output/console"
-	_ "github.com/mbiondo/logAnalyzer/plugins/output/elasticsearch"
-	_ "github.com/mbiondo/logAnalyzer/plugins/output/file"
-	_ "github.com/mbiondo/logAnalyzer/plugins/output/prometheus"
-	_ "github.com/mbiondo/logAnalyzer/plugins/output/slack"
+	_ "github.com/mbiondo/logAnalyzer/plugins/filter"
+	_ "github.com/mbiondo/logAnalyzer/plugins/input"
+	_ "github.com/mbiondo/logAnalyzer/plugins/output"
 )
 
 func main() {

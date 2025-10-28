@@ -772,9 +772,16 @@ func (p *MyPlugin) Close() error {
 }
 ```
 
-Then import in `cmd/main.go`:
+Then add the import to the appropriate aggregator file in `plugins/`:
 ```go
+// For output plugins, add to plugins/output/all.go
 import _ "github.com/mbiondo/logAnalyzer/plugins/output/myplugin"
+
+// For input plugins, add to plugins/input/all.go
+import _ "github.com/mbiondo/logAnalyzer/plugins/input/myplugin"
+
+// For filter plugins, add to plugins/filter/all.go
+import _ "github.com/mbiondo/logAnalyzer/plugins/filter/myplugin"
 ```
 
 ## 📚 Interfaces
@@ -842,8 +849,24 @@ log-analyzer/
 │   └── registry.go             # Plugin registry
 ├── plugins/
 │   ├── input/                  # Input plugins
+│   │   ├── all.go              # Input plugin aggregator
+│   │   ├── docker/             # Docker input plugin
+│   │   ├── file/               # File input plugin
+│   │   ├── http/               # HTTP input plugin
+│   │   └── kafka/              # Kafka input plugin
 │   ├── output/                 # Output plugins
+│   │   ├── all.go              # Output plugin aggregator
+│   │   ├── console/            # Console output plugin
+│   │   ├── elasticsearch/      # Elasticsearch output plugin
+│   │   ├── file/               # File output plugin
+│   │   ├── prometheus/         # Prometheus output plugin
+│   │   └── slack/              # Slack output plugin
 │   └── filter/                 # Filter plugins
+│       ├── all.go              # Filter plugin aggregator
+│       ├── json/               # JSON filter plugin
+│       ├── level/              # Level filter plugin
+│       ├── rate_limit/         # Rate limit filter plugin
+│       └── regex/              # Regex filter plugin
 ├── examples/                   # Complete working example
 │   ├── docker-compose.yml      # All services
 │   ├── loganalyzer.yaml        # Pipeline config
