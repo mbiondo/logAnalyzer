@@ -664,7 +664,9 @@ outputs:
         config: {levels: ["ERROR", "WARN"]}
     config:
       index: "db-errors-{yyyy.MM.dd}"
-```### Use Case 4: Event Streaming & Microservices
+```
+
+### Use Case 4: Event Streaming & Microservices
 
 ```yaml
 # Kafka streams → Elasticsearch with JSON parsing
