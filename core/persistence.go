@@ -207,7 +207,11 @@ func (p *Persistence) rotateFile() error {
 		}
 	}
 
-	// Create new file with timestamp and sequence number for uniqueness
+	// Create new file with timestamp and sequence number for uniqueness.
+	// The sequence number is incremented before being used in the filename to prevent
+	// collisions in the rare case where two rotations occur within the same second
+	// (e.g., under high load). This ensures each WAL file has a unique name even when
+	// timestamps are identical.
 	p.sequenceMu.Lock()
 	p.sequenceNum++
 	seq := p.sequenceNum
