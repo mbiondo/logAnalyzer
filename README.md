@@ -16,6 +16,7 @@ A flexible, extensible log analysis system with a dynamic plugin architecture an
 - **Multiple Inputs/Outputs**: Run multiple input and output plugins simultaneously
 - **Container Filtering**: Monitor specific Docker containers by name pattern (string or array)
 - **Flexible Configuration**: YAML-based configuration with plugin-specific settings
+- **Hot Reload**: Automatically reload configuration changes without restarting the application
 
 ## 📦 Built-in Plugins
 
@@ -71,6 +72,9 @@ docker build -t loganalyzer .
 ```bash
 # With configuration file
 ./loganalyzer -config config.yaml
+
+# With hot reload enabled (automatically reloads config changes)
+./loganalyzer -config config.yaml -hot-reload
 
 # Using example config
 ./loganalyzer -config examples/loganalyzer.yaml
@@ -191,6 +195,7 @@ Each output operates as an independent pipeline with:
 
 ```yaml
 inputs:
+  # Monitor Docker containers
   - type: docker
     name: "app-logs"           # Name for routing
     config:
@@ -235,6 +240,58 @@ outputs:
     config:
       format: "json"
 ```
+
+## 🔄 Hot Reload
+
+LogAnalyzer supports **hot reload** of configuration files, allowing you to modify your pipeline configuration without restarting the application. This is perfect for development, testing, and production environments where you need to adjust filtering, routing, or output settings dynamically.
+
+### How It Works
+
+When hot reload is enabled, LogAnalyzer monitors the configuration file for changes using filesystem events. When a change is detected:
+
+1. **File Change Detection**: The watcher detects modifications to the config file
+2. **Graceful Shutdown**: Current engine stops all inputs and outputs cleanly
+3. **Configuration Reload**: New configuration is loaded and validated
+4. **Engine Recreation**: A new engine is created with the updated configuration
+5. **Seamless Restart**: All plugins restart with zero downtime for log processing
+
+### Usage
+
+```bash
+# Enable hot reload
+./loganalyzer -config config.yaml -hot-reload
+
+# The application will now automatically reload when config.yaml changes
+```
+
+### Benefits
+
+- **Zero Downtime**: Configuration changes take effect immediately without service interruption
+- **Development Friendly**: Test configuration changes instantly during development
+- **Production Safe**: Adjust filtering, routing, or outputs without deployment
+- **Error Handling**: Invalid configurations are logged but don't crash the application
+- **Automatic Recovery**: Continues running with previous valid configuration if reload fails
+
+### Example Workflow
+
+```bash
+# Start with hot reload
+./loganalyzer -config config.yaml -hot-reload
+
+# In another terminal, edit the config
+vim config.yaml  # Add new filters, change outputs, etc.
+
+# Save the file - LogAnalyzer automatically detects and reloads
+# Check logs: "Config file changed, reloading..."
+# Check logs: "Engine configuration reloaded successfully"
+```
+
+### Limitations
+
+- Only works with file-based configurations (not environment variables or flags)
+- Requires the config file to be accessible and writable by the process
+- Large configuration changes may cause brief pauses during reload
+- Some plugins may require manual restart for certain configuration changes
 
 ### Docker Container Filtering
 

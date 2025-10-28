@@ -212,6 +212,7 @@ docker run -v $(pwd)/config.yaml:/config.yaml \
 - ✅ Prometheus metrics export
 - ✅ Complete Docker example with Grafana dashboards
 - ✅ Cross-platform support (Windows, Linux, Mac)
+- ✅ Hot reload of configuration files
 
 ## 🔒 Security
 

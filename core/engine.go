@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 )
@@ -143,6 +144,73 @@ func (e *Engine) Stop() {
 		}
 	}
 	log.Println("LogAnalyzer engine stopped")
+}
+
+// ReloadConfig reloads the engine with new configuration
+// This method stops the current engine and recreates it with new config
+func (e *Engine) ReloadConfig(newConfig *Config, createInputFunc func(string, string, map[string]any, *Engine), createOutputFunc func(string, PluginDefinition, *Engine)) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	log.Println("Reloading engine configuration...")
+
+	// Stop current engine
+	e.cancel()
+
+	// Stop all inputs first to stop new logs from coming
+	for name, input := range e.inputs {
+		if err := input.Stop(); err != nil {
+			log.Printf("Error stopping input plugin %s: %v", name, err)
+		}
+	}
+
+	// Close the input channel after inputs are stopped
+	close(e.inputCh)
+
+	// Wait for processing goroutine to finish
+	e.wg.Wait()
+
+	// Close all outputs
+	for _, pipeline := range e.pipelines {
+		if err := pipeline.Output.Close(); err != nil {
+			log.Printf("Error closing output %s: %v", pipeline.Name, err)
+		}
+	}
+
+	// Recreate engine with new context
+	ctx, cancel := context.WithCancel(context.Background())
+	e.ctx = ctx
+	e.cancel = cancel
+	e.inputCh = make(chan *Log, 100)
+	e.inputs = make(map[string]InputPlugin)
+	e.filters = []FilterPlugin{}
+	e.pipelines = []*OutputPipeline{}
+	e.stopped = false
+
+	// Reconfigure with new config
+	// Configure input plugin(s)
+	for i, inputDef := range newConfig.Inputs {
+		inputName := inputDef.Name
+		if inputName == "" {
+			inputName = fmt.Sprintf("%s-%d", inputDef.Type, i+1)
+		}
+		createInputFunc(inputDef.Type, inputName, inputDef.Config, e)
+	}
+
+	// Configure output plugin(s)
+	for i, outputDef := range newConfig.Outputs {
+		outputName := outputDef.Name
+		if outputName == "" {
+			outputName = fmt.Sprintf("%s-%d", outputDef.Type, i+1)
+		}
+		createOutputFunc(outputName, outputDef, e)
+	}
+
+	// Start the reloaded engine
+	e.Start()
+
+	log.Println("Engine configuration reloaded successfully")
+	return nil
 }
 
 // processLogs handles incoming logs, applies filters, and sends to outputs
