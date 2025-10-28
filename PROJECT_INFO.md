@@ -8,11 +8,22 @@ logAnalyzer/
 │   └── main.go                 # Main application
 ├── core/                       # Core engine and types
 │   ├── config.go               # Configuration structures
+│   ├── config_test.go          # Configuration tests
 │   ├── engine.go               # Pipeline processing engine
+│   ├── engine_test.go          # Engine tests
 │   ├── log.go                  # Log data structure
-│   └── registry.go             # Plugin registration system
+│   ├── log_test.go             # Log tests
+│   ├── registry.go             # Plugin registration system
+│   ├── registry_test.go        # Registry tests
+│   ├── persistence.go          # Write-Ahead Logging (WAL)
+│   ├── output_buffer.go        # Output buffering with retry & DLQ
+│   ├── plugin_resilience.go    # Plugin resilience framework
+│   ├── plugin_resilience_test.go  # Resilience tests (14 tests + benchmark)
+│   ├── plugin_wrappers.go      # Resilient plugin wrappers
+│   ├── plugin_wrappers_test.go # Wrapper tests (12 tests + benchmark)
+│   └── config_watcher.go       # Hot reload functionality
 ├── plugins/                    # Plugin implementations
-│   ├── input/                  # Input plugins (Docker, HTTP, File)
+│   ├── input/                  # Input plugins (Docker, HTTP, File, Kafka)
 │   │   ├── all.go              # Input plugin aggregator
 │   │   ├── docker/             # Docker input plugin
 │   │   ├── file/               # File input plugin
@@ -33,16 +44,20 @@ logAnalyzer/
 │       └── regex/              # Regex filter plugin
 ├── examples/                   # Complete working example
 │   ├── docker-compose.yml      # All services configuration
-│   ├── loganalyzer.yaml        # Pipeline configuration
+│   ├── loganalyzer.yaml        # Pipeline configuration with resilience
 │   ├── prometheus.yml          # Prometheus scrape config
 │   ├── grafana/                # Grafana dashboards & datasources
 │   │   ├── dashboards/
-│   │   │   └── loganalyzer-dashboard.json
+│   │   │   ├── loganalyzer-dashboard.json
+│   │   │   └── kafka-logs-dashboard.json
 │   │   └── provisioning/
 │   │       ├── datasources/
 │   │       │   └── datasources.yaml
 │   │       └── dashboards/
 │   │           └── dashboard-provider.yaml
+│   ├── scripts/
+│   │   ├── test-data.sh        # Generate test data (Linux/Mac)
+│   │   └── test-data.ps1       # Generate test data (Windows)
 │   └── README.md               # Example setup guide
 ├── .github/                    # GitHub workflows
 │   └── workflows/
@@ -57,6 +72,9 @@ logAnalyzer/
 ├── go.mod                      # Go module definition
 ├── go.sum                      # Go module checksums
 ├── README.md                   # Main documentation
+├── OUTPUT_BUFFERING.md         # Output buffering documentation
+├── TESTING_REPORT.md           # Comprehensive test report with race condition analysis
+├── config.example.yaml         # Example configuration
 ├── LICENSE                     # MIT License
 ├── CODE_OF_CONDUCT.md          # Community guidelines
 ├── CONTRIBUTING.md             # Contribution guidelines
@@ -145,19 +163,59 @@ The `examples/` directory includes a complete setup with:
 
 ## 🧪 Testing
 
-All tests are located alongside their respective code files:
+All tests are located alongside their respective code files.
+
+### Running Tests
 
 ```bash
 # Run all tests
 go test ./...
 
+# Run with race detector (recommended)
+go test -race ./...
+
+# Run with coverage
+go test -cover ./...
+
 # Run specific package tests
 go test ./core -v
 go test ./plugins/input/docker -v
 
-# Run with coverage
-go test -cover ./...
+# Run with race detector and coverage
+go test -race -cover ./core
 ```
+
+### Test Coverage
+
+- **Core Module**: 71.3% coverage
+- **Total Tests**: 79 tests in core + all plugin tests
+- **Race Conditions**: ✅ None detected (verified with `-race` flag)
+
+### Plugin Resilience Tests
+
+The resilience framework has comprehensive test coverage:
+
+**`core/plugin_resilience_test.go`** (14 tests + 1 benchmark):
+- Successful initialization
+- Retry on failure with exponential backoff
+- Max retries enforcement
+- Health check detection
+- **Concurrent access** (10 goroutines × 100 operations)
+- Exponential backoff timing
+- Close while initializing
+- Statistics tracking
+- Multiple closes (idempotent)
+- Context cancellation
+
+**`core/plugin_wrappers_test.go`** (12 tests + 1 benchmark):
+- Input plugin wrapper tests
+- Output plugin wrapper tests
+- **Concurrent writes** (10 writers + 5 health checkers)
+- Write before initialization
+- Recovery during active writes
+- Unhealthy state handling
+
+See `TESTING_REPORT.md` for detailed test results and race condition analysis.
 
 ## 📝 Configuration
 
@@ -196,6 +254,8 @@ docker run -v $(pwd)/config.yaml:/config.yaml \
 ## 📚 Documentation
 
 - **README.md**: Main documentation with full plugin reference
+- **OUTPUT_BUFFERING.md**: Comprehensive guide to output buffering, retry logic, and DLQ
+- **TESTING_REPORT.md**: Complete test report with race condition analysis
 - **examples/README.md**: Complete example setup guide
 - **CODE_OF_CONDUCT.md**: Community guidelines
 - **CONTRIBUTING.md**: How to contribute
@@ -206,6 +266,9 @@ docker run -v $(pwd)/config.yaml:/config.yaml \
 - ✅ Pipeline architecture with source-based routing
 - ✅ Per-output filtering and configuration
 - ✅ Dynamic plugin registration system
+- ✅ **Plugin resilience with automatic reconnection**
+- ✅ **Output buffering with retry logic and DLQ**
+- ✅ **Persistent buffers using Write-Ahead Logging (WAL)**
 - ✅ Container filtering (string or array)
 - ✅ Multiple inputs and outputs simultaneously
 - ✅ Elasticsearch bulk indexing
@@ -213,6 +276,7 @@ docker run -v $(pwd)/config.yaml:/config.yaml \
 - ✅ Complete Docker example with Grafana dashboards
 - ✅ Cross-platform support (Windows, Linux, Mac)
 - ✅ Hot reload of configuration files
+- ✅ **Comprehensive test coverage (71.3%) with race condition verification**
 
 ## 🔒 Security
 

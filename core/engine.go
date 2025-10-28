@@ -11,21 +11,24 @@ import (
 type OutputPipeline struct {
 	Name    string         // Optional name for this output
 	Output  OutputPlugin   // The output plugin
+	Buffer  *OutputBuffer  // Optional output buffer with retry logic
 	Filters []FilterPlugin // Filters specific to this output
 	Sources []string       // Input sources to accept (empty = all)
 }
 
 // Engine represents the core log processing engine
 type Engine struct {
-	inputCh   chan *Log
-	inputs    map[string]InputPlugin // Map of input name -> plugin
-	filters   []FilterPlugin         // Global filters (deprecated, but kept for backward compatibility)
-	pipelines []*OutputPipeline      // Output pipelines with their own filters
-	wg        sync.WaitGroup
-	ctx       context.Context
-	cancel    context.CancelFunc
-	stopped   bool       // Flag to prevent multiple stops
-	mu        sync.Mutex // Protects stopped flag
+	inputCh      chan *Log
+	inputs       map[string]InputPlugin // Map of input name -> plugin
+	filters      []FilterPlugin         // Global filters (deprecated, but kept for backward compatibility)
+	pipelines    []*OutputPipeline      // Output pipelines with their own filters
+	persistence  *Persistence           // Persistence layer for WAL
+	bufferConfig OutputBufferConfig     // Output buffer configuration
+	wg           sync.WaitGroup
+	ctx          context.Context
+	cancel       context.CancelFunc
+	stopped      bool       // Flag to prevent multiple stops
+	mu           sync.Mutex // Protects stopped flag
 }
 
 // InputPlugin interface for log input sources
@@ -59,6 +62,21 @@ func NewEngine() *Engine {
 	}
 }
 
+// SetPersistence configures the persistence layer for the engine
+func (e *Engine) SetPersistence(config PersistenceConfig) error {
+	p, err := NewPersistence(config)
+	if err != nil {
+		return fmt.Errorf("failed to initialize persistence: %w", err)
+	}
+	e.persistence = p
+	return nil
+}
+
+// SetOutputBufferConfig configures output buffering for all outputs
+func (e *Engine) SetOutputBufferConfig(config OutputBufferConfig) {
+	e.bufferConfig = config
+}
+
 // AddInput adds an input plugin to the engine with a name
 func (e *Engine) AddInput(name string, input InputPlugin) {
 	input.SetLogChannel(e.inputCh)
@@ -88,8 +106,18 @@ func (e *Engine) AddOutput(output OutputPlugin) {
 }
 
 // AddOutputPipeline adds an output pipeline with filters and source restrictions
-func (e *Engine) AddOutputPipeline(pipeline *OutputPipeline) {
+func (e *Engine) AddOutputPipeline(pipeline *OutputPipeline) error {
+	// Wrap output with buffer if configured
+	if e.bufferConfig.Enabled {
+		buffer, err := NewOutputBuffer(pipeline.Name, pipeline.Output, e.bufferConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create output buffer for %s: %w", pipeline.Name, err)
+		}
+		pipeline.Buffer = buffer
+	}
+
 	e.pipelines = append(e.pipelines, pipeline)
+	return nil
 }
 
 // InputChannel returns the channel for input plugins to send logs
@@ -99,6 +127,17 @@ func (e *Engine) InputChannel() chan<- *Log {
 
 // Start begins the log processing
 func (e *Engine) Start() {
+	// Recover persisted logs if persistence is enabled
+	if e.persistence != nil {
+		recoveryCh, err := e.persistence.Recover()
+		if err != nil {
+			log.Printf("Error starting recovery: %v", err)
+		} else {
+			e.wg.Add(1)
+			go e.processRecoveredLogs(recoveryCh)
+		}
+	}
+
 	// Start all input plugins
 	for name, input := range e.inputs {
 		if err := input.Start(); err != nil {
@@ -109,6 +148,21 @@ func (e *Engine) Start() {
 	e.wg.Add(1)
 	go e.processLogs()
 	log.Println("LogAnalyzer engine started")
+}
+
+// processRecoveredLogs handles logs recovered from persistence
+func (e *Engine) processRecoveredLogs(recoveryCh <-chan *Log) {
+	defer e.wg.Done()
+	for logEntry := range recoveryCh {
+		log.Printf("[ENGINE] Recovered log from WAL: %s - %s", logEntry.Level, logEntry.Message)
+		// Send recovered logs directly to the processing pipeline
+		select {
+		case e.inputCh <- logEntry:
+		case <-e.ctx.Done():
+			return
+		}
+	}
+	log.Println("[ENGINE] Log recovery complete")
 }
 
 // Stop gracefully shuts down the engine
@@ -137,10 +191,25 @@ func (e *Engine) Stop() {
 	// Wait for processing goroutine to finish
 	e.wg.Wait()
 
+	// Close persistence layer
+	if e.persistence != nil {
+		if err := e.persistence.Close(); err != nil {
+			log.Printf("Error closing persistence: %v", err)
+		}
+	}
+
 	// Close all outputs
 	for _, pipeline := range e.pipelines {
-		if err := pipeline.Output.Close(); err != nil {
-			log.Printf("Error closing output %s: %v", pipeline.Name, err)
+		// Close buffer if exists
+		if pipeline.Buffer != nil {
+			if err := pipeline.Buffer.Close(); err != nil {
+				log.Printf("Error closing buffer for %s: %v", pipeline.Name, err)
+			}
+		} else {
+			// Close output directly if no buffer
+			if err := pipeline.Output.Close(); err != nil {
+				log.Printf("Error closing output %s: %v", pipeline.Name, err)
+			}
 		}
 	}
 	log.Println("LogAnalyzer engine stopped")
@@ -225,6 +294,14 @@ func (e *Engine) processLogs() {
 
 			log.Printf("[ENGINE] Received log from '%s': %s - %s", logEntry.Source, logEntry.Level, logEntry.Message)
 
+			// Persist log before processing (Write-Ahead Log)
+			if e.persistence != nil {
+				if err := e.persistence.Persist(logEntry); err != nil {
+					log.Printf("[ENGINE] Error persisting log: %v", err)
+					// Continue processing even if persistence fails
+				}
+			}
+
 			// Apply global filters (deprecated, but kept for backward compatibility)
 			passedGlobalFilters := true
 			if len(e.filters) > 0 {
@@ -274,7 +351,16 @@ func (e *Engine) processLogs() {
 
 				if passedPipelineFilters {
 					log.Printf("[ENGINE] Log PASSED filters for output '%s', sending to output", pipeline.Name)
-					if err := pipeline.Output.Write(logEntry); err != nil {
+
+					// Use buffer if available, otherwise direct write
+					var err error
+					if pipeline.Buffer != nil {
+						err = pipeline.Buffer.Enqueue(logEntry)
+					} else {
+						err = pipeline.Output.Write(logEntry)
+					}
+
+					if err != nil {
 						log.Printf("[ENGINE] Error writing to output '%s': %v", pipeline.Name, err)
 					}
 				}

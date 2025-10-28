@@ -173,6 +173,20 @@ func (k *KafkaInput) Stop() error {
 	return nil
 }
 
+// CheckHealth implements HealthChecker interface
+func (k *KafkaInput) CheckHealth(ctx context.Context) error {
+	if k.reader == nil {
+		return fmt.Errorf("kafka reader not initialized")
+	}
+
+	// Check if context is cancelled (indicates connection issues)
+	if k.ctx != nil && k.ctx.Err() != nil {
+		return fmt.Errorf("kafka connection lost: %w", k.ctx.Err())
+	}
+
+	return nil
+}
+
 func (k *KafkaInput) consumeLoop() {
 	defer k.wg.Done()
 

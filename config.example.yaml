@@ -1,6 +1,28 @@
 # Simple LogAnalyzer Configuration Example
 # For complete example with all services, see examples/
 
+# Persistence configuration (optional)
+persistence:
+  enabled: true                    # Enable/disable Write-Ahead Logging
+  dir: "./data/wal"               # Directory for WAL files
+  max_file_size: 104857600        # Max size per WAL file (100MB)
+  buffer_size: 100                # Number of logs to buffer before flush
+  flush_interval: 5               # Flush interval in seconds
+  retention_hours: 24             # How long to keep WAL files
+  sync_writes: false              # fsync after each write (slower but safer)
+
+# Output buffer configuration (optional)
+output_buffer:
+  enabled: true                    # Enable/disable output buffering with retry
+  dir: "./data/buffers"           # Directory for buffer files
+  max_queue_size: 1000            # Max logs in memory queue per output
+  max_retries: 3                  # Max retry attempts for failed deliveries
+  retry_interval: 5s              # Initial retry interval (exponential backoff)
+  max_retry_delay: 60s            # Maximum backoff delay
+  flush_interval: 10s             # How often to persist retry queue
+  dlq_enabled: true               # Enable Dead Letter Queue
+  dlq_path: "./data/dlq"          # Path for DLQ files
+
 inputs:
   # Monitor Docker containers
   - type: docker
@@ -8,6 +30,11 @@ inputs:
     config:
       container_filter: "my-app"  # or ["app1", "app2"]
       stream: "stdout"
+      # Plugin resilience configuration (optional)
+      resilient: true                # Enable resilient plugin (default: true)
+      retry_interval: 10             # Retry interval in seconds (default: 10)
+      max_retries: 0                 # Max retries (0 = infinite, default: 0)
+      health_check_interval: 30      # Health check interval in seconds (default: 30)
 
 outputs:
   # Output to console
@@ -20,3 +47,8 @@ outputs:
           levels: ["INFO", "WARN", "ERROR"]
     config:
       format: "json"
+      # Plugin resilience configuration (optional)
+      resilient: true                # Enable resilient plugin (default: true)
+      retry_interval: 10             # Retry interval in seconds (default: 10)
+      max_retries: 0                 # Max retries (0 = infinite, default: 0)
+      health_check_interval: 30      # Health check interval in seconds (default: 30)

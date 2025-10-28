@@ -1,5 +1,27 @@
 # LogAnalyzer Configuration with Pipeline Architecture
 
+# Persistence configuration - Write-Ahead Logging (WAL)
+persistence:
+  enabled: true                    # Enable persistence for log durability
+  dir: "/data/wal"                # Directory for WAL files (mounted volume)
+  max_file_size: 104857600        # 100MB per WAL file
+  buffer_size: 100                # Buffer 100 logs before flush
+  flush_interval: 5               # Flush every 5 seconds
+  retention_hours: 24             # Keep WAL files for 24 hours
+  sync_writes: false              # Async writes for better performance
+
+# Output buffer configuration - Retry logic for failed outputs
+output_buffer:
+  enabled: true                    # Enable output buffering with retry
+  dir: "/data/buffers"            # Directory for buffer files
+  max_queue_size: 500             # 500 logs per output in memory
+  max_retries: 5                  # Retry up to 5 times
+  retry_interval: 10s             # Start with 10s, then exponential backoff
+  max_retry_delay: 120s           # Max 2 minutes between retries
+  flush_interval: 15s             # Persist retry queue every 15s
+  dlq_enabled: true               # Enable Dead Letter Queue
+  dlq_path: "/data/dlq"           # DLQ for permanently failed logs
+
 inputs:
   # Docker container logs
   - type: docker
@@ -9,12 +31,18 @@ inputs:
       container_filter: 
         - "loganalyzer-demo-app"
       stream: "stdout"
+      # Resilient plugin configuration
+      resilient: true              # Enable automatic reconnection (default: true)
+      retry_interval: 10           # Retry every 10 seconds if connection fails
+      max_retries: 0               # Infinite retries (0 = never give up)
+      health_check_interval: 30    # Check health every 30 seconds
 
   # HTTP endpoint for external logs
   - type: http
     name: "http-api"
     config:
       port: "8080"
+      resilient: true              # Enable automatic reconnection
 
   # Kafka topic consumption
   - type: kafka
@@ -27,6 +55,11 @@ inputs:
       start_offset: "latest"
       min_bytes: 1
       max_bytes: 10485760  # 10MB
+      # Resilient plugin configuration
+      resilient: true              # Enable automatic reconnection
+      retry_interval: 15           # Retry every 15 seconds if Kafka unavailable
+      max_retries: 0               # Infinite retries
+      health_check_interval: 30    # Check connection health every 30 seconds
 
 outputs:
   # Pipeline 1: All logs to Elasticsearch with filtering
@@ -57,6 +90,11 @@ outputs:
       index: "loganalyzer-{yyyy.MM.dd}"
       batch_size: 50
       timeout: 30
+      # Resilient plugin configuration
+      resilient: true              # Enable automatic reconnection (default: true)
+      retry_interval: 10           # Retry every 10 seconds if ES unavailable
+      max_retries: 0               # Infinite retries (0 = never give up)
+      health_check_interval: 30    # Check ES health every 30 seconds
 
   # Pipeline 2: Only Docker logs to Prometheus metrics (no filtering)
   - type: prometheus
@@ -104,6 +142,11 @@ outputs:
       index: "json-logs-{yyyy.MM.dd}"
       batch_size: 50
       timeout: 30
+      # Resilient plugin configuration
+      resilient: true
+      retry_interval: 10
+      max_retries: 0
+      health_check_interval: 30
 
   # Pipeline 5: Kafka logs to Elasticsearch with parsing
   - type: elasticsearch
@@ -126,3 +169,8 @@ outputs:
       index: "kafka-logs-{yyyy.MM.dd}"
       batch_size: 50
       timeout: 30
+      # Resilient plugin configuration
+      resilient: true
+      retry_interval: 10
+      max_retries: 0
+      health_check_interval: 30

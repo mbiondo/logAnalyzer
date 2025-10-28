@@ -84,20 +84,25 @@ func NewElasticsearchOutput(config Config) (*ElasticsearchOutput, error) {
 		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
 
-	// Test connection
+	// Test connection (non-blocking - just log if fails)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.Timeout)*time.Second)
-	defer cancel()
-
 	res, err := client.Info(client.Info.WithContext(ctx))
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Elasticsearch: %w", err)
-	}
-	defer func() {
-		_ = res.Body.Close()
-	}()
+	cancel()
 
-	if res.IsError() {
-		return nil, fmt.Errorf("elasticsearch returned error: %s", res.String())
+	if err != nil {
+		log.Printf("[ELASTICSEARCH] Initial connection test failed: %v (will retry in background)", err)
+		// Don't fail initialization - resilience layer will handle reconnection
+	} else {
+		defer func() {
+			_ = res.Body.Close()
+		}()
+
+		if res.IsError() {
+			log.Printf("[ELASTICSEARCH] Initial connection returned error: %s (will retry in background)", res.String())
+			// Don't fail initialization - resilience layer will handle reconnection
+		} else {
+			log.Printf("[ELASTICSEARCH] Successfully connected to Elasticsearch")
+		}
 	}
 
 	ctx, cancel = context.WithCancel(context.Background())
@@ -136,6 +141,13 @@ func (e *ElasticsearchOutput) Write(logEntry *core.Log) error {
 
 	if shouldFlush {
 		log.Printf("[ELASTICSEARCH] Batch full, flushing...")
+		return e.flush()
+	}
+
+	// Force immediate flush to detect connection issues early
+	// This ensures buffering system can detect and handle failures
+	if currentSize == 1 {
+		log.Printf("[ELASTICSEARCH] First log in batch, flushing immediately to detect connection issues...")
 		return e.flush()
 	}
 
@@ -272,6 +284,23 @@ func (e *ElasticsearchOutput) resolveIndexName(t time.Time) string {
 	}
 
 	return indexName
+}
+
+// CheckHealth implements HealthChecker interface
+func (e *ElasticsearchOutput) CheckHealth(ctx context.Context) error {
+	res, err := e.client.Info(e.client.Info.WithContext(ctx))
+	if err != nil {
+		return fmt.Errorf("health check failed: %w", err)
+	}
+	defer func() {
+		_ = res.Body.Close()
+	}()
+
+	if res.IsError() {
+		return fmt.Errorf("elasticsearch health check error: %s", res.String())
+	}
+
+	return nil
 }
 
 // Close closes the Elasticsearch output

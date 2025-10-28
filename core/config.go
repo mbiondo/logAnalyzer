@@ -12,8 +12,10 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Inputs  []PluginDefinition `yaml:"inputs"`
-	Outputs []PluginDefinition `yaml:"outputs"`
+	Inputs       []PluginDefinition `yaml:"inputs"`
+	Outputs      []PluginDefinition `yaml:"outputs"`
+	Persistence  PersistenceConfig  `yaml:"persistence,omitempty"`
+	OutputBuffer OutputBufferConfig `yaml:"output_buffer,omitempty"`
 }
 
 // PluginDefinition represents a generic plugin definition
