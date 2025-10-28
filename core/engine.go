@@ -29,6 +29,7 @@ type Engine struct {
 	cancel       context.CancelFunc
 	stopped      bool       // Flag to prevent multiple stops
 	mu           sync.Mutex // Protects stopped flag
+	nextInputID  int        // Monotonic counter for generating unique input names
 }
 
 // InputPlugin interface for log input sources
@@ -85,7 +86,10 @@ func (e *Engine) AddInput(name string, input InputPlugin) {
 
 // AddInputAnonymous adds an input plugin without a specific name (for backward compatibility)
 func (e *Engine) AddInputAnonymous(input InputPlugin) {
-	name := fmt.Sprintf("input-%d", len(e.inputs))
+	e.mu.Lock()
+	name := fmt.Sprintf("input-%d", e.nextInputID)
+	e.nextInputID++
+	e.mu.Unlock()
 	e.AddInput(name, input)
 }
 

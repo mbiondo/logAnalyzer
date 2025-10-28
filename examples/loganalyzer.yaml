@@ -16,7 +16,7 @@ output_buffer:
   dir: "/data/buffers"            # Directory for buffer files
   max_queue_size: 500             # 500 logs per output in memory
   max_retries: 5                  # Retry up to 5 times
-  retry_interval: 10s             # Start with 10s, then exponential backoff
+  retry_interval: 10s             # Start with 10s, exponential backoff (capped at 2 minutes)
   max_retry_delay: 120s           # Max 2 minutes between retries
   flush_interval: 15s             # Persist retry queue every 15s
   dlq_enabled: true               # Enable Dead Letter Queue
