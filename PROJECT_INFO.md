@@ -161,11 +161,10 @@ go test -cover ./...
 
 ## 📝 Configuration
 
-Configuration is YAML-based with three main sections:
+Configuration is YAML-based with two main sections:
 
-1. **input.inputs[]**: Array of input plugin configurations
-2. **output.outputs[]**: Array of output pipeline configurations
-3. **filters**: Per-pipeline filter definitions
+1. **inputs[]**: Array of input plugin configurations
+2. **outputs[]**: Array of output pipeline configurations
 
 See `examples/loganalyzer.yaml` for a complete example.
 

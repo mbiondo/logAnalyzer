@@ -190,150 +190,145 @@ Each output operates as an independent pipeline with:
 ### Basic Pipeline Example
 
 ```yaml
-input:
-  inputs:
-    - type: docker
-      name: "app-logs"           # Name for routing
-      config:
-        container_filter: "my-app"
-    
-    - type: http
-      name: "api-logs"
-      config:
-        port: "8080"
+inputs:
+  - type: docker
+    name: "app-logs"           # Name for routing
+    config:
+      container_filter: "my-app"
+  
+  - type: http
+    name: "api-logs"
+    config:
+      port: "8080"
 
-output:
-  outputs:
-    # Elasticsearch: All sources, INFO+ levels
-    - type: elasticsearch
-      name: "main-index"
-      sources: []                # Empty = all sources
-      filters:
-        - type: level
-          config:
-            levels: ["INFO", "WARN", "ERROR"]
-      config:
-        addresses:
-          - "http://elasticsearch:9200"
-        index: "logs-{yyyy.MM.dd}"
-        batch_size: 50
-    
-    # Prometheus: Only docker logs, no filters
-    - type: prometheus
-      name: "metrics"
-      sources: ["app-logs"]      # Only from app-logs
-      filters: []
-      config:
-        port: 9091
-    
-    # Console: All sources, ERROR only
-    - type: console
-      name: "errors"
-      sources: []
-      filters:
-        - type: level
-          config:
-            levels: ["ERROR"]
-      config:
-        format: "json"
+outputs:
+  # Elasticsearch: All sources, INFO+ levels
+  - type: elasticsearch
+    name: "main-index"
+    sources: []                # Empty = all sources
+    filters:
+      - type: level
+        config:
+          levels: ["INFO", "WARN", "ERROR"]
+    config:
+      addresses:
+        - "http://elasticsearch:9200"
+      index: "logs-{yyyy.MM.dd}"
+      batch_size: 50
+  
+  # Prometheus: Only docker logs, no filters
+  - type: prometheus
+    name: "metrics"
+    sources: ["app-logs"]      # Only from app-logs
+    filters: []
+    config:
+      port: 9091
+  
+  # Console: All sources, ERROR only
+  - type: console
+    name: "errors"
+    sources: []
+    filters:
+      - type: level
+        config:
+          levels: ["ERROR"]
+    config:
+      format: "json"
 ```
 
 ### Docker Container Filtering
 
 ```yaml
-input:
-  inputs:
-    - type: docker
-      name: "my-containers"
-      config:
-        # Option 1: Single container (string)
-        container_filter: "my-app"
-        
-        # Option 2: Multiple containers (array)
-        # container_filter:
-        #   - "app-*"
-        #   - "service-*"
-        #   - "worker-*"
-        
-        stream: "stdout"
+inputs:
+  - type: docker
+    name: "my-containers"
+    config:
+      # Option 1: Single container (string)
+      container_filter: "my-app"
+      
+      # Option 2: Multiple containers (array)
+      # container_filter:
+      #   - "app-*"
+      #   - "service-*"
+      #   - "worker-*"
+      
+      stream: "stdout"
 ```
 
 ### Advanced Multi-Pipeline
 
 ```yaml
-input:
-  inputs:
-    - type: docker
-      name: "web-app"
-      config:
-        container_filter: ["nginx", "webapp"]
-    
-    - type: docker
-      name: "api-service"
-      config:
-        container_filter: "api-*"
-    
-    - type: http
-      name: "external"
-      config:
-        port: "8080"
-    
-    - type: kafka
-      name: "stream-logs"
-      config:
-        brokers: ["kafka:29092"]
-        topic: "application-logs"
-        group_id: "loganalyzer-group"
-        start_offset: "latest"
+inputs:
+  - type: docker
+    name: "web-app"
+    config:
+      container_filter: ["nginx", "webapp"]
+  
+  - type: docker
+    name: "api-service"
+    config:
+      container_filter: "api-*"
+  
+  - type: http
+    name: "external"
+    config:
+      port: "8080"
+  
+  - type: kafka
+    name: "stream-logs"
+    config:
+      brokers: ["kafka:29092"]
+      topic: "application-logs"
+      group_id: "loganalyzer-group"
+      start_offset: "latest"
 
-output:
-  outputs:
-    # Critical alerts to Slack (all sources)
-    - type: slack
-      name: "alerts"
-      sources: []
-      filters:
-        - type: level
-          config:
-            levels: ["ERROR"]
-        - type: regex
-          config:
-            patterns: ["CRITICAL", "FATAL"]
-            mode: "include"
-      config:
-        webhook_url: "https://hooks.slack.com/..."
-        channel: "#alerts"
-    
-    # Web logs to Elasticsearch
-    - type: elasticsearch
-      name: "web-index"
-      sources: ["web-app"]
-      filters:
-        - type: level
-          config:
-            levels: ["INFO", "WARN", "ERROR"]
-      config:
-        index: "web-{yyyy.MM.dd}"
-    
-    # Kafka stream logs to separate index
-    - type: elasticsearch
-      name: "kafka-index"
-      sources: ["stream-logs"]
-      filters:
-        - type: json
-          config:
-            field: "message"
-            flatten: true
-      config:
-        index: "kafka-logs-{yyyy.MM.dd}"
-    
-    # API metrics to Prometheus
-    - type: prometheus
-      name: "api-metrics"
-      sources: ["api-service"]
-      filters: []
-      config:
-        port: 9091
+outputs:
+  # Critical alerts to Slack (all sources)
+  - type: slack
+    name: "alerts"
+    sources: []
+    filters:
+      - type: level
+        config:
+          levels: ["ERROR"]
+      - type: regex
+        config:
+          patterns: ["CRITICAL", "FATAL"]
+          mode: "include"
+    config:
+      webhook_url: "https://hooks.slack.com/..."
+      channel: "#alerts"
+  
+  # Web logs to Elasticsearch
+  - type: elasticsearch
+    name: "web-index"
+    sources: ["web-app"]
+    filters:
+      - type: level
+        config:
+          levels: ["INFO", "WARN", "ERROR"]
+    config:
+      index: "web-{yyyy.MM.dd}"
+  
+  # Kafka stream logs to separate index
+  - type: elasticsearch
+    name: "kafka-index"
+    sources: ["stream-logs"]
+    filters:
+      - type: json
+        config:
+          field: "message"
+          flatten: true
+    config:
+      index: "kafka-logs-{yyyy.MM.dd}"
+  
+  # API metrics to Prometheus
+  - type: prometheus
+    name: "api-metrics"
+    sources: ["api-service"]
+    filters: []
+    config:
+      port: 9091
 ```
 
 ## 🔌 Plugin Reference
@@ -593,31 +588,29 @@ echo '{"level":"error","message":"System error"}' | \
 ```yaml
 # Production errors → Slack
 # Staging → Console only
-input:
-  inputs:
-    - type: docker
-      name: "prod"
-      config:
-        labels: {env: "production"}
-    - type: docker
-      name: "staging"
-      config:
-        labels: {env: "staging"}
+inputs:
+  - type: docker
+    name: "prod"
+    config:
+      labels: {env: "production"}
+  - type: docker
+    name: "staging"
+    config:
+      labels: {env: "staging"}
 
-output:
-  outputs:
-    - type: slack
-      sources: ["prod"]
-      filters:
-        - type: level
-          config: {levels: ["ERROR"]}
-      config:
-        webhook_url: "..."
-    
-    - type: console
-      sources: ["staging"]
-      filters: []
-      config: {format: "json"}
+outputs:
+  - type: slack
+    sources: ["prod"]
+    filters:
+      - type: level
+        config: {levels: ["ERROR"]}
+    config:
+      webhook_url: "..."
+  
+  - type: console
+    sources: ["staging"]
+    filters: []
+    config: {format: "json"}
 ```
 
 ### Use Case 2: Compliance
@@ -625,23 +618,22 @@ output:
 ```yaml
 # All logs → Audit
 # Errors → Alerts
-output:
-  outputs:
-    - type: elasticsearch
-      name: "audit"
-      sources: []      # Everything
-      filters: []      # No filtering
-      config:
-        index: "audit-{yyyy.MM}"
-    
-    - type: slack
-      name: "alerts"
-      sources: []
-      filters:
-        - type: level
-          config: {levels: ["ERROR"]}
-      config:
-        webhook_url: "..."
+outputs:
+  - type: elasticsearch
+    name: "audit"
+    sources: []      # Everything
+    filters: []      # No filtering
+    config:
+      index: "audit-{yyyy.MM}"
+  
+  - type: slack
+    name: "alerts"
+    sources: []
+    filters:
+      - type: level
+        config: {levels: ["ERROR"]}
+    config:
+      webhook_url: "..."
 ```
 
 ### Use Case 3: Performance Monitoring
@@ -649,31 +641,29 @@ output:
 ```yaml
 # Web → Prometheus
 # DB errors → Elasticsearch
-input:
-  inputs:
-    - type: docker
-      name: "web"
-      config:
-        container_filter: ["nginx-*", "webapp-*"]
-    - type: docker
-      name: "db"
-      config:
-        container_filter: "postgres-*"
+inputs:
+  - type: docker
+    name: "web"
+    config:
+      container_filter: ["nginx-*", "webapp-*"]
+  - type: docker
+    name: "db"
+    config:
+      container_filter: "postgres-*"
 
-output:
-  outputs:
-    - type: prometheus
-      sources: ["web"]
-      filters: []
-      config: {port: 9091}
-    
-    - type: elasticsearch
-      sources: ["db"]
-      filters:
-        - type: level
-          config: {levels: ["ERROR", "WARN"]}
-      config:
-        index: "db-errors-{yyyy.MM.dd}"
+outputs:
+  - type: prometheus
+    sources: ["web"]
+    filters: []
+    config: {port: 9091}
+  
+  - type: elasticsearch
+    sources: ["db"]
+    filters:
+      - type: level
+        config: {levels: ["ERROR", "WARN"]}
+    config:
+      index: "db-errors-{yyyy.MM.dd}"
 ```
 
 ### Use Case 4: Event Streaming & Microservices
@@ -681,57 +671,55 @@ output:
 ```yaml
 # Kafka streams → Elasticsearch with JSON parsing
 # Application logs → Metrics
-input:
-  inputs:
-    - type: kafka
-      name: "event-stream"
-      config:
-        brokers: ["kafka:29092"]
-        topic: "user-events"
-        group_id: "loganalyzer-events"
-        start_offset: "latest"
-    
-    - type: docker
-      name: "microservices"
-      config:
-        container_filter: ["auth-*", "payment-*", "notification-*"]
+inputs:
+  - type: kafka
+    name: "event-stream"
+    config:
+      brokers: ["kafka:29092"]
+      topic: "user-events"
+      group_id: "loganalyzer-events"
+      start_offset: "latest"
+  
+  - type: docker
+    name: "microservices"
+    config:
+      container_filter: ["auth-*", "payment-*", "notification-*"]
 
-output:
-  outputs:
-    # Parse and index Kafka events
-    - type: elasticsearch
-      name: "events-index"
-      sources: ["event-stream"]
-      filters:
-        - type: json
-          config:
-            field: "message"
-            flatten: true
-      config:
-        index: "events-{yyyy.MM.dd}"
-    
-    # Application metrics
-    - type: prometheus
-      name: "app-metrics"
-      sources: ["microservices"]
-      filters:
-        - type: level
-          config: {levels: ["INFO", "WARN", "ERROR"]}
-      config: {port: 9091}
-    
-    # Critical errors to Slack
-    - type: slack
-      name: "critical-alerts"
-      sources: []
-      filters:
-        - type: level
-          config: {levels: ["ERROR"]}
-        - type: regex
-          config:
-            patterns: ["CRITICAL", "DOWN", "FAILED"]
-            mode: "include"
-      config:
-        webhook_url: "..."
+outputs:
+  # Parse and index Kafka events
+  - type: elasticsearch
+    name: "events-index"
+    sources: ["event-stream"]
+    filters:
+      - type: json
+        config:
+          field: "message"
+          flatten: true
+    config:
+      index: "events-{yyyy.MM.dd}"
+  
+  # Application metrics
+  - type: prometheus
+    name: "app-metrics"
+    sources: ["microservices"]
+    filters:
+      - type: level
+        config: {levels: ["INFO", "WARN", "ERROR"]}
+    config: {port: 9091}
+  
+  # Critical errors to Slack
+  - type: slack
+    name: "critical-alerts"
+    sources: []
+    filters:
+      - type: level
+        config: {levels: ["ERROR"]}
+      - type: regex
+        config:
+          patterns: ["CRITICAL", "DOWN", "FAILED"]
+          mode: "include"
+    config:
+      webhook_url: "..."
 ```
 
 ## 🛠️ Creating Custom Plugins

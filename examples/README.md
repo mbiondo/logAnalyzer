@@ -271,15 +271,14 @@ echo '{"timestamp":"2023-10-27T10:01:00Z","level":"error","message":"Database co
 Edit `loganalyzer.yaml`:
 
 ```yaml
-input:
-  inputs:
-    - type: docker
-      name: "all-containers"
-      config:
-        container_filter: 
-          - "my-app-*"
-          - "my-service-*"
-        stream: "stdout"
+inputs:
+  - type: docker
+    name: "all-containers"
+    config:
+      container_filter: 
+        - "my-app-*"
+        - "my-service-*"
+      stream: "stdout"
 ```
 
 ### Change Elasticsearch Index
@@ -287,12 +286,11 @@ input:
 Edit `loganalyzer.yaml`:
 
 ```yaml
-output:
-  outputs:
-    - type: elasticsearch
-      name: "custom-index"
-      config:
-        index: "my-logs-{yyyy.MM.dd}"
+outputs:
+  - type: elasticsearch
+    name: "custom-index"
+    config:
+      index: "my-logs-{yyyy.MM.dd}"
 ```
 
 ### Add Slack Alerts
@@ -300,18 +298,17 @@ output:
 Edit `loganalyzer.yaml`:
 
 ```yaml
-output:
-  outputs:
-    - type: slack
-      name: "alerts"
-      sources: []
-      filters:
-        - type: level
-          config:
-            levels: ["ERROR"]
-      config:
-        webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-        channel: "#alerts"
+outputs:
+  - type: slack
+    name: "alerts"
+    sources: []
+    filters:
+      - type: level
+        config:
+          levels: ["ERROR"]
+    config:
+      webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+      channel: "#alerts"
 ```
 
 ## 🐛 Troubleshooting
@@ -516,50 +513,47 @@ demo-app:
 ### Monitor Multiple Apps
 
 ```yaml
-input:
-  inputs:
-    - type: docker
-      name: "frontend"
-      config:
-        container_filter: ["nginx-*", "webapp-*"]
-    
-    - type: docker
-      name: "backend"
-      config:
-        container_filter: ["api-*", "worker-*"]
+inputs:
+  - type: docker
+    name: "frontend"
+    config:
+      container_filter: ["nginx-*", "webapp-*"]
+  
+  - type: docker
+    name: "backend"
+    config:
+      container_filter: ["api-*", "worker-*"]
 
-output:
-  outputs:
-    # Frontend logs → Elasticsearch
-    - type: elasticsearch
-      sources: ["frontend"]
-      config:
-        index: "frontend-{yyyy.MM.dd}"
-    
-    # Backend logs → Elasticsearch
-    - type: elasticsearch
-      sources: ["backend"]
-      config:
-        index: "backend-{yyyy.MM.dd}"
+outputs:
+  # Frontend logs → Elasticsearch
+  - type: elasticsearch
+    sources: ["frontend"]
+    config:
+      index: "frontend-{yyyy.MM.dd}"
+  
+  # Backend logs → Elasticsearch
+  - type: elasticsearch
+    sources: ["backend"]
+    config:
+      index: "backend-{yyyy.MM.dd}"
 ```
 
 ### Alert on Critical Errors
 
 ```yaml
-output:
-  outputs:
-    - type: slack
-      sources: []
-      filters:
-        - type: level
-          config:
-            levels: ["ERROR"]
-        - type: regex
-          config:
-            patterns: ["CRITICAL", "FATAL"]
-            mode: "include"
-      config:
-        webhook_url: "..."
+outputs:
+  - type: slack
+    sources: []
+    filters:
+      - type: level
+        config:
+          levels: ["ERROR"]
+      - type: regex
+        config:
+          patterns: ["CRITICAL", "FATAL"]
+          mode: "include"
+    config:
+      webhook_url: "..."
 ```
 
 ---

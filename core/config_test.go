@@ -8,32 +8,26 @@ import (
 func TestLoadDynamicConfig(t *testing.T) {
 	// Create a temporary config file with dynamic format
 	configContent := `
-input:
-  type: file
-  config:
-    path: "/var/log/app.log"
-    encoding: "utf-8"
+inputs:
+  - type: file
+    config:
+      path: "/var/log/app.log"
+      encoding: "utf-8"
 
-filter:
-  type: level
-  config:
-    levels: ["error", "warn", "info"]
-
-output:
-  outputs:
-    - type: console
-      config:
-        target: "stdout"
-        format: "json"
-    - type: slack
-      config:
-        webhook_url: "https://hooks.slack.com/services/xxx"
-        channel: "#alerts"
-        username: "LogBot"
-        timeout: 30
-    - type: prometheus
-      config:
-        port: 9090
+outputs:
+  - type: console
+    config:
+      target: "stdout"
+      format: "json"
+  - type: slack
+    config:
+      webhook_url: "https://hooks.slack.com/services/xxx"
+      channel: "#alerts"
+      username: "LogBot"
+      timeout: 30
+  - type: prometheus
+    config:
+      port: 9090
 `
 
 	tmpFile, err := os.CreateTemp("", "config-*.yaml")
@@ -58,46 +52,40 @@ output:
 	}
 
 	// Test input config
-	if config.Input.Type != "file" {
-		t.Errorf("expected input type 'file', got '%s'", config.Input.Type)
+	if len(config.Inputs) != 1 {
+		t.Fatalf("expected 1 input, got %d", len(config.Inputs))
+	}
+	if config.Inputs[0].Type != "file" {
+		t.Errorf("expected input type 'file', got '%s'", config.Inputs[0].Type)
 	}
 
-	if config.Input.Config["path"] != "/var/log/app.log" {
-		t.Errorf("expected path '/var/log/app.log', got '%v'", config.Input.Config["path"])
-	}
-
-	// Test filter config
-	if config.Filter.Type != "level" {
-		t.Errorf("expected filter type 'level', got '%s'", config.Filter.Type)
-	}
-
-	if levels, ok := config.Filter.Config["levels"].([]any); !ok || len(levels) != 3 {
-		t.Errorf("expected 3 filter levels in config, got %v", config.Filter.Config["levels"])
+	if config.Inputs[0].Config["path"] != "/var/log/app.log" {
+		t.Errorf("expected path '/var/log/app.log', got '%v'", config.Inputs[0].Config["path"])
 	}
 
 	// Test output config
-	if len(config.Output.Outputs) != 3 {
-		t.Fatalf("expected 3 outputs, got %d", len(config.Output.Outputs))
+	if len(config.Outputs) != 3 {
+		t.Fatalf("expected 3 outputs, got %d", len(config.Outputs))
 	}
 
 	// Verify first output (console)
-	if config.Output.Outputs[0].Type != "console" {
-		t.Errorf("expected output type 'console', got '%s'", config.Output.Outputs[0].Type)
+	if config.Outputs[0].Type != "console" {
+		t.Errorf("expected output type 'console', got '%s'", config.Outputs[0].Type)
 	}
 
 	// Verify second output (slack)
-	if config.Output.Outputs[1].Type != "slack" {
-		t.Errorf("expected output type 'slack', got '%s'", config.Output.Outputs[1].Type)
+	if config.Outputs[1].Type != "slack" {
+		t.Errorf("expected output type 'slack', got '%s'", config.Outputs[1].Type)
 	}
 
-	slackConfig := config.Output.Outputs[1].Config
+	slackConfig := config.Outputs[1].Config
 	if slackConfig["channel"] != "#alerts" {
 		t.Errorf("expected slack channel '#alerts', got '%v'", slackConfig["channel"])
 	}
 
 	// Verify third output (prometheus)
-	if config.Output.Outputs[2].Type != "prometheus" {
-		t.Errorf("expected output type 'prometheus', got '%s'", config.Output.Outputs[2].Type)
+	if config.Outputs[2].Type != "prometheus" {
+		t.Errorf("expected output type 'prometheus', got '%s'", config.Outputs[2].Type)
 	}
 }
 
@@ -174,40 +162,33 @@ func TestGetPluginConfigWithComplexStructs(t *testing.T) {
 func TestDefaultDynamicConfig(t *testing.T) {
 	config := DefaultConfig()
 
-	if config.Input.Type != "file" {
-		t.Errorf("expected input type 'file', got '%s'", config.Input.Type)
+	if len(config.Inputs) != 1 {
+		t.Errorf("expected 1 input, got %d", len(config.Inputs))
+	}
+	if config.Inputs[0].Type != "file" {
+		t.Errorf("expected input type 'file', got '%s'", config.Inputs[0].Type)
 	}
 
-	if config.Output.Type != "prometheus" {
-		t.Errorf("expected output type 'prometheus', got '%s'", config.Output.Type)
+	if len(config.Outputs) != 1 {
+		t.Errorf("expected 1 output, got %d", len(config.Outputs))
 	}
-
-	if config.Filter.Type != "level" {
-		t.Errorf("expected filter type 'level', got '%s'", config.Filter.Type)
-	}
-
-	if levels, ok := config.Filter.Config["levels"].([]string); !ok || len(levels) != 2 {
-		t.Errorf("expected 2 filter levels, got %v", config.Filter.Config["levels"])
+	if config.Outputs[0].Type != "prometheus" {
+		t.Errorf("expected output type 'prometheus', got '%s'", config.Outputs[0].Type)
 	}
 }
 
 func TestBackwardCompatibility(t *testing.T) {
-	// Test single input/output format still works
+	// Test single input/output format still works (now as arrays)
 	configContent := `
-input:
-  type: http
-  config:
-    port: "8080"
+inputs:
+  - type: http
+    config:
+      port: "8080"
 
-filter:
-  type: level
-  config:
-    levels: ["error"]
-
-output:
-  type: file
-  config:
-    file_path: "/var/log/output.log"
+outputs:
+  - type: file
+    config:
+      file_path: "/var/log/output.log"
 `
 
 	tmpFile, err := os.CreateTemp("", "config-*.yaml")
@@ -230,40 +211,34 @@ output:
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if config.Input.Type != "http" {
-		t.Errorf("expected input type 'http', got '%s'", config.Input.Type)
+	if len(config.Inputs) != 1 || config.Inputs[0].Type != "http" {
+		t.Errorf("expected input type 'http', got '%v'", config.Inputs)
 	}
 
-	if config.Output.Type != "file" {
-		t.Errorf("expected output type 'file', got '%s'", config.Output.Type)
+	if len(config.Outputs) != 1 || config.Outputs[0].Type != "file" {
+		t.Errorf("expected output type 'file', got '%v'", config.Outputs)
 	}
 }
 
 func TestMultipleInputs(t *testing.T) {
 	configContent := `
-input:
-  inputs:
-    - type: file
-      config:
-        path: "/var/log/app1.log"
-    - type: docker
-      config:
-        container_ids: ["web"]
-        stream: "stdout"
-    - type: http
-      config:
-        port: "8080"
+inputs:
+  - type: file
+    config:
+      path: "/var/log/app1.log"
+  - type: docker
+    config:
+      container_ids: ["web"]
+      stream: "stdout"
+  - type: http
+    config:
+      port: "8080"
 
-filter:
-  type: level
-  config:
-    levels: ["error", "warn"]
-
-output:
-  type: console
-  config:
-    target: "stdout"
-    format: "text"
+outputs:
+  - type: console
+    config:
+      target: "stdout"
+      format: "text"
 `
 
 	tmpFile, err := os.CreateTemp("", "config-*.yaml")
@@ -286,44 +261,42 @@ output:
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if len(config.Input.Inputs) != 3 {
-		t.Errorf("expected 3 inputs, got %d", len(config.Input.Inputs))
+	if len(config.Inputs) != 3 {
+		t.Errorf("expected 3 inputs, got %d", len(config.Inputs))
 	}
 
 	// Verify each input type
-	if config.Input.Inputs[0].Type != "file" {
-		t.Errorf("expected first input type 'file', got '%s'", config.Input.Inputs[0].Type)
+	if config.Inputs[0].Type != "file" {
+		t.Errorf("expected first input type 'file', got '%s'", config.Inputs[0].Type)
 	}
-	if config.Input.Inputs[1].Type != "docker" {
-		t.Errorf("expected second input type 'docker', got '%s'", config.Input.Inputs[1].Type)
+	if config.Inputs[1].Type != "docker" {
+		t.Errorf("expected second input type 'docker', got '%s'", config.Inputs[1].Type)
 	}
-	if config.Input.Inputs[2].Type != "http" {
-		t.Errorf("expected third input type 'http', got '%s'", config.Input.Inputs[2].Type)
+	if config.Inputs[2].Type != "http" {
+		t.Errorf("expected third input type 'http', got '%s'", config.Inputs[2].Type)
 	}
 }
 
 func TestMultipleFilters(t *testing.T) {
 	configContent := `
-input:
-  type: file
-  config:
-    path: "/var/log/app.log"
+inputs:
+  - type: file
+    config:
+      path: "/var/log/app.log"
 
-filter:
-  filters:
-    - type: level
-      config:
-        levels: ["error", "warn", "info"]
-    - type: regex
-      config:
-        patterns: ["ERROR.*", "WARN.*"]
-        mode: "include"
-        field: "message"
-
-output:
-  type: console
-  config:
-    target: "stdout"
+outputs:
+  - type: console
+    config:
+      target: "stdout"
+    filters:
+      - type: level
+        config:
+          levels: ["error", "warn", "info"]
+      - type: regex
+        config:
+          patterns: ["ERROR.*", "WARN.*"]
+          mode: "include"
+          field: "message"
 `
 
 	tmpFile, err := os.CreateTemp("", "config-*.yaml")
@@ -346,24 +319,28 @@ output:
 		t.Fatalf("failed to load config: %v", err)
 	}
 
-	if len(config.Filter.Filters) != 2 {
-		t.Errorf("expected 2 filters, got %d", len(config.Filter.Filters))
+	if len(config.Outputs) != 1 {
+		t.Fatalf("expected 1 output, got %d", len(config.Outputs))
+	}
+
+	if len(config.Outputs[0].Filters) != 2 {
+		t.Errorf("expected 2 filters, got %d", len(config.Outputs[0].Filters))
 	}
 
 	// Verify each filter type
-	if config.Filter.Filters[0].Type != "level" {
-		t.Errorf("expected first filter type 'level', got '%s'", config.Filter.Filters[0].Type)
+	if config.Outputs[0].Filters[0].Type != "level" {
+		t.Errorf("expected first filter type 'level', got '%s'", config.Outputs[0].Filters[0].Type)
 	}
-	if config.Filter.Filters[1].Type != "regex" {
-		t.Errorf("expected second filter type 'regex', got '%s'", config.Filter.Filters[1].Type)
+	if config.Outputs[0].Filters[1].Type != "regex" {
+		t.Errorf("expected second filter type 'regex', got '%s'", config.Outputs[0].Filters[1].Type)
 	}
 
 	// Verify filter configs
-	if levels, ok := config.Filter.Filters[0].Config["levels"].([]any); !ok || len(levels) != 3 {
-		t.Errorf("expected 3 levels in first filter, got %v", config.Filter.Filters[0].Config["levels"])
+	if levels, ok := config.Outputs[0].Filters[0].Config["levels"].([]any); !ok || len(levels) != 3 {
+		t.Errorf("expected 3 levels in first filter, got %v", config.Outputs[0].Filters[0].Config["levels"])
 	}
 
-	if patterns, ok := config.Filter.Filters[1].Config["patterns"].([]any); !ok || len(patterns) != 2 {
-		t.Errorf("expected 2 patterns in second filter, got %v", config.Filter.Filters[1].Config["patterns"])
+	if patterns, ok := config.Outputs[0].Filters[1].Config["patterns"].([]any); !ok || len(patterns) != 2 {
+		t.Errorf("expected 2 patterns in second filter, got %v", config.Outputs[0].Filters[1].Config["patterns"])
 	}
 }

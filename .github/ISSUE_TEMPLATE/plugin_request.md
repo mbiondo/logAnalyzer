@@ -26,11 +26,11 @@ What system/service would this plugin integrate with?
 ## Configuration Example
 ```yaml
 # Example configuration for the plugin
-output:
-  type: your-plugin-name
-  config:
-    host: "localhost:9200"
-    option: value
+outputs:
+  - type: your-plugin-name
+    config:
+      host: "localhost:9200"
+      option: value
 ```
 
 ## Key Features
