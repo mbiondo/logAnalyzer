@@ -310,7 +310,7 @@ func (ob *OutputBuffer) calculateBackoff(attempts int) time.Duration {
 		attempts = 1
 	}
 
-	// Cap attempts to prevent integer overflow (2^10 = 1024x is already very large)
+	// Cap attempts to prevent excessively large backoff delays (2^10 = 1024x multiplier is already very large)
 	if attempts > 10 {
 		attempts = 10
 	}
