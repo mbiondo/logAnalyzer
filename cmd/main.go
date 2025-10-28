@@ -118,19 +118,3 @@ func createOutputPipeline(name string, outputDef core.PluginDefinition, engine *
 	log.Printf("Using %s output plugin as '%s' (sources: %v, filters: %d)",
 		outputDef.Type, name, outputDef.Sources, len(filters))
 }
-
-func createFilterPlugin(pluginType string, config map[string]any, index int, engine *core.Engine) {
-	indexStr := ""
-	if index > 0 {
-		indexStr = " #" + string(rune(index+'0'))
-	}
-
-	// Use plugin registry to create plugin dynamically
-	filterPlugin, err := core.CreateFilterPlugin(pluginType, config)
-	if err != nil {
-		log.Fatalf("Error creating filter plugin %s%s: %v", pluginType, indexStr, err)
-	}
-
-	engine.AddFilter(filterPlugin)
-	log.Printf("Using %s filter plugin%s", pluginType, indexStr)
-}
