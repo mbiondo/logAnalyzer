@@ -85,7 +85,7 @@ func (e *Engine) AddInput(name string, input InputPlugin) {
 
 // AddInputAnonymous adds an input plugin without a specific name (for backward compatibility)
 func (e *Engine) AddInputAnonymous(input InputPlugin) {
-	name := "input-" + string(rune(len(e.inputs)+'0'))
+	name := fmt.Sprintf("input-%d", len(e.inputs))
 	e.AddInput(name, input)
 }
 
@@ -97,7 +97,7 @@ func (e *Engine) AddFilter(filter FilterPlugin) {
 // AddOutput adds an output plugin to the engine (deprecated - use AddOutputPipeline)
 func (e *Engine) AddOutput(output OutputPlugin) {
 	pipeline := &OutputPipeline{
-		Name:    "output-" + string(rune(len(e.pipelines)+'0')),
+		Name:    fmt.Sprintf("output-%d", len(e.pipelines)),
 		Output:  output,
 		Filters: []FilterPlugin{},
 		Sources: []string{}, // Accept from all sources

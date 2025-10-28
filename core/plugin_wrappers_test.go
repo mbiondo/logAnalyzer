@@ -19,7 +19,7 @@ func TestResilientInputPlugin_Success(t *testing.T) {
 
 	logCh := make(chan *Log, 10)
 	rip := NewResilientInputPlugin("test-input", "test", factory, map[string]any{}, logCh, config)
-	defer rip.Stop()
+	defer func() { _ = rip.Stop() }()
 
 	// Wait for initialization
 	time.Sleep(200 * time.Millisecond)
@@ -47,7 +47,7 @@ func TestResilientInputPlugin_SetLogChannel(t *testing.T) {
 
 	logCh1 := make(chan *Log, 10)
 	rip := NewResilientInputPlugin("test-input", "test", factory, map[string]any{}, logCh1, config)
-	defer rip.Stop()
+	defer func() { _ = rip.Stop() }()
 
 	// Wait for initialization
 	time.Sleep(200 * time.Millisecond)
@@ -111,7 +111,7 @@ func TestResilientInputPlugin_ConcurrentAccess(t *testing.T) {
 
 	logCh := make(chan *Log, 10)
 	rip := NewResilientInputPlugin("test-input", "test", factory, map[string]any{}, logCh, config)
-	defer rip.Stop()
+	defer func() { _ = rip.Stop() }()
 
 	// Wait for initialization
 	time.Sleep(200 * time.Millisecond)
@@ -145,7 +145,7 @@ func TestResilientOutputPlugin_Success(t *testing.T) {
 	}
 
 	rop := NewResilientOutputPlugin("test-output", "test", factory, map[string]any{}, config)
-	defer rop.Close()
+	defer func() { _ = rop.Close() }()
 
 	// Wait for initialization
 	time.Sleep(200 * time.Millisecond)
@@ -172,7 +172,7 @@ func TestResilientOutputPlugin_Write(t *testing.T) {
 	}
 
 	rop := NewResilientOutputPlugin("test-output", "test", factory, map[string]any{}, config)
-	defer rop.Close()
+	defer func() { _ = rop.Close() }()
 
 	// Wait for initialization
 	time.Sleep(200 * time.Millisecond)
@@ -199,7 +199,7 @@ func TestResilientOutputPlugin_WriteWhenUnhealthy(t *testing.T) {
 	}
 
 	rop := NewResilientOutputPlugin("test-output", "test", factory, map[string]any{}, config)
-	defer rop.Close()
+	defer func() { _ = rop.Close() }()
 
 	// Wait for initialization
 	time.Sleep(200 * time.Millisecond)
@@ -225,7 +225,7 @@ func TestResilientOutputPlugin_WriteBeforeInitialization(t *testing.T) {
 	}
 
 	rop := NewResilientOutputPlugin("test-output", "test", factory, map[string]any{}, config)
-	defer rop.Close()
+	defer func() { _ = rop.Close() }()
 
 	// Try to write before initialization completes
 	log := NewLog("info", "test message")
@@ -247,7 +247,7 @@ func TestResilientOutputPlugin_ConcurrentWrites(t *testing.T) {
 	}
 
 	rop := NewResilientOutputPlugin("test-output", "test", factory, map[string]any{}, config)
-	defer rop.Close()
+	defer func() { _ = rop.Close() }()
 
 	// Wait for initialization
 	time.Sleep(200 * time.Millisecond)
@@ -330,7 +330,7 @@ func TestResilientOutputPlugin_RecoveryDuringWrites(t *testing.T) {
 	}
 
 	rop := NewResilientOutputPlugin("test-output", "test", factory, map[string]any{}, config)
-	defer rop.Close()
+	defer func() { _ = rop.Close() }()
 
 	// Wait for initialization
 	time.Sleep(200 * time.Millisecond)
@@ -370,7 +370,7 @@ func BenchmarkResilientOutputPlugin_Write(b *testing.B) {
 	}
 
 	rop := NewResilientOutputPlugin("test-output", "test", factory, map[string]any{}, config)
-	defer rop.Close()
+	defer func() { _ = rop.Close() }()
 
 	// Wait for initialization
 	time.Sleep(200 * time.Millisecond)

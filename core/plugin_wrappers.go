@@ -63,7 +63,6 @@ func (r *ResilientInputPlugin) GetStats() map[string]any {
 // ResilientOutputPlugin wraps an output plugin with resilience
 type ResilientOutputPlugin struct {
 	resilient *ResilientPlugin
-	mu        sync.RWMutex
 }
 
 // NewResilientOutputPlugin creates a resilient output plugin

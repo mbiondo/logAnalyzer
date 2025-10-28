@@ -205,7 +205,9 @@ func TestEngineAddOutputPipeline(t *testing.T) {
 		Sources: []string{"test-source"},
 	}
 
-	engine.AddOutputPipeline(pipeline)
+	if err := engine.AddOutputPipeline(pipeline); err != nil {
+		t.Fatalf("Failed to add output pipeline: %v", err)
+	}
 
 	if len(engine.pipelines) != 1 {
 		t.Errorf("Expected 1 pipeline, got %d", len(engine.pipelines))
@@ -264,7 +266,9 @@ func TestEngineProcessingPipeline(t *testing.T) {
 		Filters: []FilterPlugin{filter},
 		Sources: []string{}, // Accept all sources
 	}
-	engine.AddOutputPipeline(pipeline)
+	if err := engine.AddOutputPipeline(pipeline); err != nil {
+		t.Fatalf("Failed to add output pipeline: %v", err)
+	}
 
 	// Start engine
 	engine.Start()
@@ -318,7 +322,9 @@ func TestEngineFilterBlocksLogs(t *testing.T) {
 		Filters: []FilterPlugin{filter},
 		Sources: []string{},
 	}
-	engine.AddOutputPipeline(pipeline)
+	if err := engine.AddOutputPipeline(pipeline); err != nil {
+		t.Fatalf("Failed to add output pipeline: %v", err)
+	}
 
 	// Start engine
 	engine.Start()
@@ -365,7 +371,9 @@ func TestEngineSourceFiltering(t *testing.T) {
 		Filters: []FilterPlugin{},
 		Sources: []string{"source1"}, // Only accept source1
 	}
-	engine.AddOutputPipeline(pipeline)
+	if err := engine.AddOutputPipeline(pipeline); err != nil {
+		t.Fatalf("Failed to add output pipeline: %v", err)
+	}
 
 	// Start engine
 	engine.Start()
@@ -414,8 +422,12 @@ func TestEngineMultipleOutputs(t *testing.T) {
 		Sources: []string{},
 	}
 
-	engine.AddOutputPipeline(pipeline1)
-	engine.AddOutputPipeline(pipeline2)
+	if err := engine.AddOutputPipeline(pipeline1); err != nil {
+		t.Fatalf("Failed to add pipeline1: %v", err)
+	}
+	if err := engine.AddOutputPipeline(pipeline2); err != nil {
+		t.Fatalf("Failed to add pipeline2: %v", err)
+	}
 
 	// Start engine
 	engine.Start()

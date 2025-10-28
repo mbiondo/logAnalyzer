@@ -71,7 +71,7 @@ func TestOutputBuffer_Disabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create buffer: %v", err)
 	}
-	defer buffer.Close()
+	defer func() { _ = buffer.Close() }()
 
 	log := NewLog("INFO", "test message")
 	if err := buffer.Enqueue(log); err != nil {
@@ -106,7 +106,7 @@ func TestOutputBuffer_BasicDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create buffer: %v", err)
 	}
-	defer buffer.Close()
+	defer func() { _ = buffer.Close() }()
 
 	// Enqueue some logs
 	for i := 0; i < 5; i++ {
@@ -154,7 +154,7 @@ func TestOutputBuffer_RetryOnFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create buffer: %v", err)
 	}
-	defer buffer.Close()
+	defer func() { _ = buffer.Close() }()
 
 	// Enqueue a log
 	log := NewLog("INFO", "test message")
@@ -202,7 +202,7 @@ func TestOutputBuffer_DLQAfterMaxRetries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create buffer: %v", err)
 	}
-	defer buffer.Close()
+	defer func() { _ = buffer.Close() }()
 
 	// Enqueue a log
 	log := NewLog("INFO", "test message")
@@ -252,7 +252,7 @@ func TestOutputBuffer_ExponentialBackoff(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create buffer: %v", err)
 	}
-	defer buffer.Close()
+	defer func() { _ = buffer.Close() }()
 
 	// Test backoff calculation
 	tests := []struct {
@@ -279,7 +279,7 @@ func TestOutputBuffer_ExponentialBackoff(t *testing.T) {
 func TestOutputBuffer_QueueFullPersistence(t *testing.T) {
 	tmpDir := t.TempDir()
 	bufferDir := filepath.Join(tmpDir, "test")
-	os.MkdirAll(bufferDir, 0755)
+	_ = os.MkdirAll(bufferDir, 0755)
 
 	output := &MockOutput{}
 
@@ -306,7 +306,7 @@ func TestOutputBuffer_QueueFullPersistence(t *testing.T) {
 	go func() {
 		for i := 0; i < 10; i++ {
 			log := NewLog("INFO", "test message")
-			buffer.Enqueue(log)
+			_ = buffer.Enqueue(log)
 		}
 		done <- true
 	}()
@@ -314,7 +314,7 @@ func TestOutputBuffer_QueueFullPersistence(t *testing.T) {
 	<-done
 	time.Sleep(200 * time.Millisecond)
 
-	buffer.Close()
+	_ = buffer.Close()
 
 	// Either buffer files were created OR all logs were delivered quickly
 	// Both are acceptable outcomes
@@ -330,7 +330,7 @@ func TestOutputBuffer_QueueFullPersistence(t *testing.T) {
 func TestOutputBuffer_LoadPersistedLogs(t *testing.T) {
 	tmpDir := t.TempDir()
 	bufferDir := filepath.Join(tmpDir, "test")
-	os.MkdirAll(bufferDir, 0755)
+	_ = os.MkdirAll(bufferDir, 0755)
 
 	// Create a persisted log file
 	bufferedLog := &BufferedLog{
@@ -343,7 +343,7 @@ func TestOutputBuffer_LoadPersistedLogs(t *testing.T) {
 
 	data, _ := json.Marshal(bufferedLog)
 	persistFile := filepath.Join(bufferDir, "buffer-12345.jsonl")
-	os.WriteFile(persistFile, data, 0644)
+	_ = os.WriteFile(persistFile, data, 0644)
 
 	// Create buffer - should load persisted logs
 	output := &MockOutput{}
@@ -363,7 +363,7 @@ func TestOutputBuffer_LoadPersistedLogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create buffer: %v", err)
 	}
-	defer buffer.Close()
+	defer func() { _ = buffer.Close() }()
 
 	// Wait for delivery (should happen quickly as it's loaded into retry queue)
 	time.Sleep(2 * time.Second)
@@ -403,7 +403,7 @@ func TestOutputBuffer_ConcurrentEnqueue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create buffer: %v", err)
 	}
-	defer buffer.Close()
+	defer func() { _ = buffer.Close() }()
 
 	// Concurrent enqueue from multiple goroutines
 	numGoroutines := 10
@@ -464,7 +464,7 @@ func TestOutputBuffer_GracefulShutdown(t *testing.T) {
 	// Enqueue logs
 	for i := 0; i < 20; i++ {
 		log := NewLog("INFO", "test message")
-		buffer.Enqueue(log)
+		_ = buffer.Enqueue(log)
 	}
 
 	// Close immediately
@@ -504,12 +504,12 @@ func TestOutputBuffer_Stats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create buffer: %v", err)
 	}
-	defer buffer.Close()
+	defer func() { _ = buffer.Close() }()
 
 	// Enqueue logs
 	for i := 0; i < 3; i++ {
 		log := NewLog("INFO", "test message")
-		buffer.Enqueue(log)
+		_ = buffer.Enqueue(log)
 	}
 
 	// Wait for processing (first 2 fail, need retries: 50ms, 100ms, 200ms)

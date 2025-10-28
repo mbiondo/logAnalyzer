@@ -17,7 +17,7 @@ func TestPersistence_Disabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create persistence: %v", err)
 	}
-	defer p.Close()
+	defer func() { _ = p.Close() }()
 
 	// Should not error when disabled
 	log := NewLog("INFO", "test message")
@@ -67,7 +67,7 @@ func TestPersistence_BasicWriteAndRecover(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create persistence for recovery: %v", err)
 	}
-	defer p2.Close()
+	defer func() { _ = p2.Close() }()
 
 	recoveryCh, err := p2.Recover()
 	if err != nil {
@@ -110,7 +110,7 @@ func TestPersistence_BufferFlush(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create persistence: %v", err)
 	}
-	defer p.Close()
+	defer func() { _ = p.Close() }()
 
 	// Write exactly buffer size logs
 	for i := 0; i < config.BufferSize; i++ {
@@ -161,7 +161,7 @@ func TestPersistence_FileRotation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create persistence: %v", err)
 	}
-	defer p.Close()
+	defer func() { _ = p.Close() }()
 
 	// Write enough logs to trigger rotation
 	for i := 0; i < 10; i++ {
@@ -202,7 +202,7 @@ func TestPersistence_Cleanup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create persistence: %v", err)
 	}
-	defer p.Close()
+	defer func() { _ = p.Close() }()
 
 	// Create an old file manually
 	oldFile := filepath.Join(tmpDir, "wal-20200101-120000.log")

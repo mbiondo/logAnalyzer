@@ -278,7 +278,7 @@ func (p *Persistence) recoverFile(filename string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to open WAL file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	reader := bufio.NewReader(file)
 	count := 0

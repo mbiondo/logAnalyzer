@@ -11,8 +11,6 @@ import (
 
 // Mock plugin for testing
 type mockPlugin struct {
-	failCount     int
-	maxFails      int
 	mu            sync.Mutex
 	started       bool
 	stopped       bool
@@ -93,7 +91,7 @@ func TestResilientPlugin_SuccessfulInitialization(t *testing.T) {
 	}
 
 	rp := NewResilientPlugin("test-plugin", "test", factory, map[string]any{}, config)
-	defer rp.Close()
+	defer func() { _ = rp.Close() }()
 
 	// Wait for initialization
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -126,7 +124,7 @@ func TestResilientPlugin_RetryOnFailure(t *testing.T) {
 	}
 
 	rp := NewResilientPlugin("test-plugin", "test", fpf.create, map[string]any{}, config)
-	defer rp.Close()
+	defer func() { _ = rp.Close() }()
 
 	// Wait for initialization with retries
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -161,7 +159,7 @@ func TestResilientPlugin_MaxRetriesReached(t *testing.T) {
 	}
 
 	rp := NewResilientPlugin("test-plugin", "test", factory, map[string]any{}, config)
-	defer rp.Close()
+	defer func() { _ = rp.Close() }()
 
 	// Wait and verify it doesn't become healthy
 	time.Sleep(500 * time.Millisecond)
@@ -190,7 +188,7 @@ func TestResilientPlugin_HealthCheckDetectsFailure(t *testing.T) {
 	}
 
 	rp := NewResilientPlugin("test-plugin", "test", factory, map[string]any{}, config)
-	defer rp.Close()
+	defer func() { _ = rp.Close() }()
 
 	// Wait for initial health
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -239,7 +237,7 @@ func TestResilientPlugin_ConcurrentAccess(t *testing.T) {
 	}
 
 	rp := NewResilientPlugin("test-plugin", "test", factory, map[string]any{}, config)
-	defer rp.Close()
+	defer func() { _ = rp.Close() }()
 
 	// Wait for initialization
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -284,7 +282,7 @@ func TestResilientPlugin_ExponentialBackoff(t *testing.T) {
 	}
 
 	rp := NewResilientPlugin("test-plugin", "test", wrappedFactory, map[string]any{}, config)
-	defer rp.Close()
+	defer func() { _ = rp.Close() }()
 
 	// Wait for successful initialization
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -352,7 +350,7 @@ func TestResilientPlugin_GetStats(t *testing.T) {
 	}
 
 	rp := NewResilientPlugin("test-plugin", "test-type", fpf.create, map[string]any{}, config)
-	defer rp.Close()
+	defer func() { _ = rp.Close() }()
 
 	// Wait for initialization
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -417,7 +415,7 @@ func TestResilientPlugin_ContextCancellation(t *testing.T) {
 	}
 
 	rp := NewResilientPlugin("test-plugin", "test", factory, map[string]any{}, config)
-	defer rp.Close()
+	defer func() { _ = rp.Close() }()
 
 	// Wait with short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -442,7 +440,7 @@ func BenchmarkResilientPlugin_ConcurrentAccess(b *testing.B) {
 	}
 
 	rp := NewResilientPlugin("test-plugin", "test", factory, map[string]any{}, config)
-	defer rp.Close()
+	defer func() { _ = rp.Close() }()
 
 	// Wait for initialization
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

@@ -308,6 +308,11 @@ func (ob *OutputBuffer) calculateBackoff(attempts int) time.Duration {
 		return ob.config.RetryInterval
 	}
 
+	// Cap attempts to prevent integer overflow (2^10 = 1024x is already very large)
+	if attempts > 10 {
+		attempts = 10
+	}
+
 	// Exponential backoff: RetryInterval * 2^(attempts-1)
 	backoff := ob.config.RetryInterval * time.Duration(1<<uint(attempts-1))
 
@@ -380,7 +385,9 @@ func (ob *OutputBuffer) persistRetryQueue() {
 		log.Printf("[BUFFER:%s] Error creating retry queue file: %v", ob.outputName, err)
 		return
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	for _, bufferedLog := range ob.retryQueue {
 		data, err := json.Marshal(bufferedLog)
@@ -388,7 +395,9 @@ func (ob *OutputBuffer) persistRetryQueue() {
 			log.Printf("[BUFFER:%s] Error marshaling retry log: %v", ob.outputName, err)
 			continue
 		}
-		file.Write(append(data, '\n'))
+		if _, err := file.Write(append(data, '\n')); err != nil {
+			log.Printf("[BUFFER:%s] Error writing retry log to disk: %v", ob.outputName, err)
+		}
 	}
 }
 
@@ -430,7 +439,7 @@ func (ob *OutputBuffer) loadPersistedLogs() error {
 		loadedCount++
 
 		// Remove the file after loading
-		os.Remove(filename)
+		_ = os.Remove(filename)
 	}
 
 	ob.statsMu.Lock()
@@ -487,7 +496,7 @@ drainLoop:
 
 	// Close DLQ file
 	if ob.dlqFile != nil {
-		ob.dlqFile.Close()
+		_ = ob.dlqFile.Close()
 	}
 
 	// Close underlying output
