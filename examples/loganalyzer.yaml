@@ -1,130 +1,128 @@
 # LogAnalyzer Configuration with Pipeline Architecture
 
-input:
-  inputs:
-    # Docker container logs
-    - type: docker
-      name: "docker-demo"
-      config:
-        # Monitor specific containers
-        container_filter: 
-          - "loganalyzer-demo-app"
-        stream: "stdout"
+inputs:
+  # Docker container logs
+  - type: docker
+    name: "docker-demo"
+    config:
+      # Monitor specific containers
+      container_filter: 
+        - "loganalyzer-demo-app"
+      stream: "stdout"
 
-    # HTTP endpoint for external logs
-    - type: http
-      name: "http-api"
-      config:
-        port: "8080"
+  # HTTP endpoint for external logs
+  - type: http
+    name: "http-api"
+    config:
+      port: "8080"
 
-    # Kafka topic consumption
-    - type: kafka
-      name: "kafka-logs"
-      config:
-        brokers:
-          - "kafka:29092"
-        topic: "application-logs"
-        group_id: "loganalyzer-group"
-        start_offset: "latest"
-        min_bytes: 1
-        max_bytes: 10485760  # 10MB
+  # Kafka topic consumption
+  - type: kafka
+    name: "kafka-logs"
+    config:
+      brokers:
+        - "kafka:29092"
+      topic: "application-logs"
+      group_id: "loganalyzer-group"
+      start_offset: "latest"
+      min_bytes: 1
+      max_bytes: 10485760  # 10MB
 
-output:
-  outputs:
-    # Pipeline 1: All logs to Elasticsearch with filtering
-    - type: elasticsearch
-      name: "elasticsearch-all"
-      sources: []  # Accept from all inputs
-      filters:
-        # Filter by log level
-        - type: level
-          config:
-            levels: ["INFO", "WARN", "ERROR"]
-        
-        # Filter by regex patterns (exclude DEBUG noise)
-        - type: regex
-          config:
-            patterns: ["request id="]
-            mode: "exclude"
-            field: "message"
-        
-        # Rate limit to prevent Elasticsearch overload (5 logs/sec, burst of 20)
-        - type: rate_limit
-          config:
-            rate: 5.0
-            burst: 20
-      config:
-        addresses:
-          - "http://elasticsearch:9200"
-        index: "loganalyzer-{yyyy.MM.dd}"
-        batch_size: 50
-        timeout: 30
+outputs:
+  # Pipeline 1: All logs to Elasticsearch with filtering
+  - type: elasticsearch
+    name: "elasticsearch-all"
+    sources: []  # Accept from all inputs
+    filters:
+      # Filter by log level
+      - type: level
+        config:
+          levels: ["INFO", "WARN", "ERROR"]
+      
+      # Filter by regex patterns (exclude DEBUG noise)
+      - type: regex
+        config:
+          patterns: ["request id="]
+          mode: "exclude"
+          field: "message"
+      
+      # Rate limit to prevent Elasticsearch overload (5 logs/sec, burst of 20)
+      - type: rate_limit
+        config:
+          rate: 5.0
+          burst: 20
+    config:
+      addresses:
+        - "http://elasticsearch:9200"
+      index: "loganalyzer-{yyyy.MM.dd}"
+      batch_size: 50
+      timeout: 30
 
-    # Pipeline 2: Only Docker logs to Prometheus metrics (no filtering)
-    - type: prometheus
-      name: "prometheus-metrics"
-      sources: ["docker-demo"]  # Only from docker-demo input
-      filters: []  # No filtering - all logs become metrics
-      config:
-        port: 9091
+  # Pipeline 2: Only Docker logs to Prometheus metrics (no filtering)
+  - type: prometheus
+    name: "prometheus-metrics"
+    sources: ["docker-demo"]  # Only from docker-demo input
+    filters: []  # No filtering - all logs become metrics
+    config:
+      port: 9091
 
-    # Pipeline 3: Errors to Console for debugging
-    - type: console
-      name: "console-errors"
-      sources: []  # Accept from all inputs
-      filters:
-        - type: level
-          config:
-            levels: ["WARN", "ERROR"]
-        # Rate limit console output (2 logs/sec, burst of 5)
-        - type: rate_limit
-          config:
-            rate: 2.0
-            burst: 5
-      config:
-        target: "stdout"
-        format: "json"
+  # Pipeline 3: Errors to Console for debugging
+  - type: console
+    name: "console-errors"
+    sources: []  # Accept from all inputs
+    filters:
+      - type: level
+        config:
+          levels: ["WARN", "ERROR"]
+      # Rate limit console output (2 logs/sec, burst of 5)
+      - type: rate_limit
+        config:
+          rate: 2.0
+          burst: 5
+    config:
+      target: "stdout"
+      format: "json"
 
-    # Pipeline 4: JSON logs from HTTP to Elasticsearch with parsing
-    - type: elasticsearch
-      name: "elasticsearch-json"
-      sources: ["http-api"]  # Only from HTTP input
-      filters:
-        # Parse JSON from message field
-        - type: json
-          config:
-            field: "message"
-            flatten: true
-            ignore_errors: false
-        # Filter by parsed level field
-        - type: level
-          config:
-            levels: ["INFO", "WARN", "ERROR"]
-      config:
-        addresses:
-          - "http://elasticsearch:9200"
-        index: "json-logs-{yyyy.MM.dd}"
-        batch_size: 50
-        timeout: 30
+  # Pipeline 4: JSON logs from HTTP to Elasticsearch with parsing
+  - type: elasticsearch
+    name: "elasticsearch-json"
+    sources: ["http-api"]  # Only from HTTP input
+    filters:
+      # Parse JSON from message field
+      - type: json
+        config:
+          field: "message"
+          flatten: true
+          ignore_errors: false
+      # Filter by parsed level field
+      - type: level
+        config:
+          levels: ["INFO", "WARN", "ERROR"]
+    config:
+      addresses:
+        - "http://elasticsearch:9200"
+      index: "json-logs-{yyyy.MM.dd}"
+      batch_size: 50
+      timeout: 30
 
-    # Pipeline 5: Kafka logs to Elasticsearch with parsing
-    - type: elasticsearch
-      name: "elasticsearch-kafka"
-      sources: ["kafka-logs"]  # Only from Kafka input
-      filters:
-        # Parse JSON from message field
-        - type: json
-          config:
-            field: "message"
-            flatten: true
-            ignore_errors: false
-        # Filter by parsed level field
-        - type: level
-          config:
-            levels: ["INFO", "WARN", "ERROR"]
-      config:
-        addresses:
-          - "http://elasticsearch:9200"
-        index: "kafka-logs-{yyyy.MM.dd}"
-        batch_size: 50
-        timeout: 30
+  # Pipeline 5: Kafka logs to Elasticsearch with parsing
+  - type: elasticsearch
+    name: "elasticsearch-kafka"
+    sources: ["kafka-logs"]  # Only from Kafka input
+    filters:
+      # Parse JSON from message field
+      - type: json
+        config:
+          field: "message"
+          flatten: true
+          ignore_errors: false
+      # Filter by parsed level field
+      - type: level
+        config:
+          levels: ["INFO", "WARN", "ERROR"]
+    config:
+      addresses:
+        - "http://elasticsearch:9200"
+      index: "kafka-logs-{yyyy.MM.dd}"
+      batch_size: 50
+      timeout: 30

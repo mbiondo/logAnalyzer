@@ -30,10 +30,15 @@ What actually happened.
 ## Configuration
 ```yaml
 # Your config.yaml (remove sensitive data)
-input:
-  type: file
-  config:
-    path: "/var/log/app.log"
+inputs:
+  - type: file
+    config:
+      path: "/var/log/app.log"
+
+outputs:
+  - type: console
+    config:
+      format: "json"
 ```
 
 ## Logs

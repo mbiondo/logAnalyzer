@@ -25,10 +25,15 @@ Describe your specific use case and how this feature would help.
 ## Example Configuration
 ```yaml
 # Example of how the feature might be configured
-input:
-  type: new-plugin
-  config:
-    option: value
+inputs:
+  - type: new-plugin
+    config:
+      option: value
+
+outputs:
+  - type: console
+    config:
+      format: "json"
 ```
 
 ## Additional Context

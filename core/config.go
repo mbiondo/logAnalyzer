@@ -9,19 +9,8 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Input  InputConfig  `yaml:"input"`
-	Filter FilterConfig `yaml:"filter"`
-	Output OutputConfig `yaml:"output"`
-}
-
-// InputConfig represents input plugin configuration with dynamic plugin configs
-type InputConfig struct {
-	// Single input (backward compatibility)
-	Type   string         `yaml:"type,omitempty"`
-	Config map[string]any `yaml:"config,omitempty"`
-
-	// Multiple inputs (new feature)
-	Inputs []PluginDefinition `yaml:"inputs,omitempty"`
+	Inputs  []PluginDefinition `yaml:"inputs"`
+	Outputs []PluginDefinition `yaml:"outputs"`
 }
 
 // PluginDefinition represents a generic plugin definition
@@ -33,26 +22,6 @@ type PluginDefinition struct {
 	// Output-specific options
 	Sources []string           `yaml:"sources,omitempty"` // Input sources to accept logs from (empty = all)
 	Filters []PluginDefinition `yaml:"filters,omitempty"` // Filters to apply before this output
-}
-
-// FilterConfig represents filter plugin configuration with dynamic plugin configs
-type FilterConfig struct {
-	// Single filter (backward compatibility)
-	Type   string         `yaml:"type,omitempty"`
-	Config map[string]any `yaml:"config,omitempty"`
-
-	// Multiple filters (new feature)
-	Filters []PluginDefinition `yaml:"filters,omitempty"`
-}
-
-// OutputConfig represents output configuration with dynamic plugin configs
-type OutputConfig struct {
-	// Single output (backward compatibility)
-	Type   string         `yaml:"type,omitempty"`
-	Config map[string]any `yaml:"config,omitempty"`
-
-	// Multiple outputs (new feature)
-	Outputs []PluginDefinition `yaml:"outputs,omitempty"`
 }
 
 // LoadConfig loads configuration from a YAML file
@@ -88,23 +57,21 @@ func GetPluginConfig(pluginConfig map[string]any, target any) error {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
-		Input: InputConfig{
-			Type: "file",
-			Config: map[string]any{
-				"path":     "app.log",
-				"encoding": "utf-8",
+		Inputs: []PluginDefinition{
+			{
+				Type: "file",
+				Config: map[string]any{
+					"path":     "app.log",
+					"encoding": "utf-8",
+				},
 			},
 		},
-		Filter: FilterConfig{
-			Type: "level",
-			Config: map[string]any{
-				"levels": []string{"error", "warn"},
-			},
-		},
-		Output: OutputConfig{
-			Type: "prometheus",
-			Config: map[string]any{
-				"port": 9090,
+		Outputs: []PluginDefinition{
+			{
+				Type: "prometheus",
+				Config: map[string]any{
+					"port": 9090,
+				},
 			},
 		},
 	}

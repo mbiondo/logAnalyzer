@@ -40,50 +40,23 @@ func main() {
 	engine := core.NewEngine()
 
 	// Configure input plugin(s)
-	if len(config.Input.Inputs) > 0 {
-		// Multiple inputs configuration
-		for i, inputDef := range config.Input.Inputs {
-			inputName := inputDef.Name
-			if inputName == "" {
-				inputName = fmt.Sprintf("%s-%d", inputDef.Type, i+1)
-			}
-			createInputPlugin(inputDef.Type, inputName, inputDef.Config, engine)
+	for i, inputDef := range config.Inputs {
+		inputName := inputDef.Name
+		if inputName == "" {
+			inputName = fmt.Sprintf("%s-%d", inputDef.Type, i+1)
 		}
-	} else {
-		// Single input configuration (backward compatibility)
-		inputName := config.Input.Type + "-1"
-		createInputPlugin(config.Input.Type, inputName, config.Input.Config, engine)
+		createInputPlugin(inputDef.Type, inputName, inputDef.Config, engine)
 	}
 
-	// Configure filter plugin(s)
-	if len(config.Filter.Filters) > 0 {
-		// Multiple filters configuration
-		for i, filterDef := range config.Filter.Filters {
-			createFilterPlugin(filterDef.Type, filterDef.Config, i+1, engine)
-		}
-	} else if config.Filter.Type != "" {
-		// Single filter configuration (backward compatibility)
-		createFilterPlugin(config.Filter.Type, config.Filter.Config, 0, engine)
-	}
+	// Configure filter plugin(s) - now handled per output pipeline
 
 	// Configure output plugin(s)
-	if len(config.Output.Outputs) > 0 {
-		// Multiple outputs configuration with pipelines
-		for i, outputDef := range config.Output.Outputs {
-			outputName := outputDef.Name
-			if outputName == "" {
-				outputName = fmt.Sprintf("%s-%d", outputDef.Type, i+1)
-			}
-			createOutputPipeline(outputName, outputDef, engine)
+	for i, outputDef := range config.Outputs {
+		outputName := outputDef.Name
+		if outputName == "" {
+			outputName = fmt.Sprintf("%s-%d", outputDef.Type, i+1)
 		}
-	} else {
-		// Single output configuration (backward compatibility)
-		outputPlugin, err := core.CreateOutputPlugin(config.Output.Type, config.Output.Config)
-		if err != nil {
-			log.Fatalf("Error creating output plugin %s: %v", config.Output.Type, err)
-		}
-		engine.AddOutput(outputPlugin)
-		log.Printf("Using %s output plugin", config.Output.Type)
+		createOutputPipeline(outputName, outputDef, engine)
 	}
 
 	// Start engine
