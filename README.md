@@ -234,7 +234,9 @@ outputs:
           levels: ["ERROR"]
     config:
       format: "json"
-```### Docker Container Filtering
+```
+
+### Docker Container Filtering
 
 ```yaml
 inputs:

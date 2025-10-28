@@ -309,7 +309,9 @@ outputs:
     config:
       webhook_url: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
       channel: "#alerts"
-```## 🐛 Troubleshooting
+```
+
+## 🐛 Troubleshooting
 
 ### Elasticsearch not healthy
 
