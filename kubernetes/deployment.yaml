@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loganalyzer
+  namespace: loganalyzer
+  labels:
+    app: loganalyzer
+    version: v1
+spec:
+  replicas: 1  # Single replica for log ordering, scale horizontally with multiple deployments if needed
+  strategy:
+    type: Recreate  # Recreate strategy to ensure clean shutdown/startup
+  selector:
+    matchLabels:
+      app: loganalyzer
+  template:
+    metadata:
+      labels:
+        app: loganalyzer
+        version: v1
+    spec:
+      serviceAccountName: loganalyzer
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+      - name: loganalyzer
+        image: loganalyzer:latest  # Replace with your actual image
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http-input
+          protocol: TCP
+        - containerPort: 9091
+          name: metrics
+          protocol: TCP
+        env:
+        - name: ELASTICSEARCH_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-secret
+              key: username
+              optional: true
+        - name: ELASTICSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: elasticsearch-secret
+              key: password
+              optional: true
+        volumeMounts:
+        - name: config-volume
+          mountPath: /config
+          readOnly: true
+        - name: wal-volume
+          mountPath: /data/wal
+        - name: buffers-volume
+          mountPath: /data/buffers
+        - name: dlq-volume
+          mountPath: /data/dlq
+        - name: archive-volume
+          mountPath: /data/archive
+        - name: docker-socket
+          mountPath: /var/run/docker.sock
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        command:
+        - "/loganalyzer"
+        args:
+        - "-config"
+        - "/config/config.yaml"
+        - "-hot-reload"
+      volumes:
+      - name: config-volume
+        configMap:
+          name: loganalyzer-config
+      - name: wal-volume
+        persistentVolumeClaim:
+          claimName: loganalyzer-wal
+      - name: buffers-volume
+        persistentVolumeClaim:
+          claimName: loganalyzer-buffers
+      - name: dlq-volume
+        persistentVolumeClaim:
+          claimName: loganalyzer-dlq
+      - name: archive-volume
+        persistentVolumeClaim:
+          claimName: loganalyzer-archive
+      - name: docker-socket
+        hostPath:
+          path: /var/run/docker.sock
+          type: Socket

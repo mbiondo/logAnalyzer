@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loganalyzer-config
+  namespace: loganalyzer
+  labels:
+    app: loganalyzer
+data:
+  config.yaml: |
+    # ============================================
+    # PRODUCTION CONFIGURATION FOR KUBERNETES
+    # ============================================
+
+    # Persistence - Write-Ahead Logging for crash recovery
+    persistence:
+      enabled: true
+      dir: "/data/wal"
+      max_file_size: 104857600    # 100MB per file
+      buffer_size: 100            # Buffer 100 logs before flush
+      flush_interval: 5           # Flush every 5 seconds
+      retention_hours: 168        # Keep WAL files for 7 days
+      sync_writes: false          # false = faster, true = more durable
+
+    # Output buffer configuration - Zero log loss
+    output_buffer:
+      enabled: true
+      dir: "/data/buffers"
+      max_queue_size: 1000        # Max logs in memory queue per output
+      max_retries: 3              # Max retry attempts for failed deliveries
+      retry_interval: 5s          # Initial retry interval (exponential backoff)
+      max_retry_delay: 60s        # Maximum backoff delay
+      flush_interval: 10s         # How often to persist retry queue
+      dlq_enabled: true           # Enable Dead Letter Queue
+      dlq_path: "/data/dlq"       # Path for DLQ files
+
+    # Input plugins
+    inputs:
+      # HTTP endpoint for external logs
+      - type: http
+        name: "http-input"
+        config:
+          port: "8080"
+          resilient: true
+          retry_interval: 10
+          max_retries: 0
+          health_check_interval: 30
+
+      # Monitor container logs from Kubernetes pods
+      - type: docker
+        name: "k8s-containers"
+        config:
+          container_filter: []     # Monitor all containers
+          stream: "stdout"
+          resilient: true
+          retry_interval: 10
+          max_retries: 0
+          health_check_interval: 30
+
+    # Output plugins - Independent pipelines
+    outputs:
+      # Pipeline 1: All logs to Elasticsearch
+      - type: elasticsearch
+        name: "elasticsearch-main"
+        sources: []                 # Accept all sources
+        filters:
+          - type: level
+            config:
+              levels: ["INFO", "WARN", "ERROR"]
+          - type: json
+            config:
+              field: "message"
+              flatten: true
+              ignore_errors: true
+        config:
+          addresses: ["http://elasticsearch:9200"]
+          index: "logs-{yyyy.MM.dd}"
+          username: "${ELASTICSEARCH_USERNAME}"
+          password: "${ELASTICSEARCH_PASSWORD}"
+          batch_size: 50
+          timeout: 30
+          resilient: true
+          retry_interval: 10
+          max_retries: 0
+          health_check_interval: 30
+
+      # Pipeline 2: Critical errors to console (for debugging)
+      - type: console
+        name: "critical-console"
+        sources: []
+        filters:
+          - type: level
+            config:
+              levels: ["ERROR"]
+        config:
+          format: "json"
+          target: "stderr"
+
+      # Pipeline 3: Prometheus metrics
+      - type: prometheus
+        name: "metrics"
+        sources: []
+        filters: []
+        config:
+          port: 9091
+
+      # Pipeline 4: Archive all logs to file
+      - type: file
+        name: "file-archive"
+        sources: []
+        filters: []
+        config:
+          file_path: "/data/archive/archive.log"

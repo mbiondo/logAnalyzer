@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: loganalyzer-ingress
+  namespace: loganalyzer
+  labels:
+    app: loganalyzer
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"  # If using cert-manager
+spec:
+  ingressClassName: nginx  # Change to your ingress controller
+  tls:
+  - hosts:
+    - loganalyzer.yourdomain.com  # Replace with your domain
+    secretName: loganalyzer-tls
+  rules:
+  - host: loganalyzer.yourdomain.com  # Replace with your domain
+    http:
+      paths:
+      - path: /logs
+        pathType: Prefix
+        backend:
+          service:
+            name: loganalyzer-service
+            port:
+              number: 8080
+      - path: /metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: loganalyzer-service
+            port:
+              number: 9091
