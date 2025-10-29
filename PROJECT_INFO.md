@@ -9,7 +9,7 @@ logAnalyzer/
 ├── core/                       # Core engine and types
 │   ├── config.go               # Configuration structures
 │   ├── config_test.go          # Configuration tests
-│   ├── engine.go               # Pipeline processing engine
+│   ├── engine.go               # Pipeline processing engine with API server
 │   ├── engine_test.go          # Engine tests
 │   ├── log.go                  # Log data structure
 │   ├── log_test.go             # Log tests
@@ -266,6 +266,7 @@ docker run -v $(pwd)/config.yaml:/config.yaml \
 - ✅ Pipeline architecture with source-based routing
 - ✅ Per-output filtering and configuration
 - ✅ Dynamic plugin registration system
+- ✅ **Built-in REST API for service monitoring and metrics**
 - ✅ **Plugin resilience with automatic reconnection**
 - ✅ **Output buffering with retry logic and DLQ**
 - ✅ **Persistent buffers using Write-Ahead Logging (WAL)**

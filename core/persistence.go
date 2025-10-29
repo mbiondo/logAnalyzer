@@ -62,7 +62,10 @@ type WALEntry struct {
 // NewPersistence creates a new persistence handler
 func NewPersistence(config PersistenceConfig) (*Persistence, error) {
 	if !config.Enabled {
-		return &Persistence{config: config}, nil
+		return &Persistence{
+			config:        config,
+			recoveryQueue: make(chan *Log, 1000),
+		}, nil
 	}
 
 	// Create WAL directory if it doesn't exist

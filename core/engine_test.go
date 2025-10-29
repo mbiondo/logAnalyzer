@@ -1,6 +1,9 @@
 package core
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -495,5 +498,300 @@ func TestEngineChannelBuffering(t *testing.T) {
 		// Should succeed immediately due to buffering
 	default:
 		t.Error("Input channel should be buffered")
+	}
+}
+
+func TestEngineEnableAPI(t *testing.T) {
+	engine := NewEngine()
+
+	config := &Config{
+		API: APIConfig{
+			Enabled: true,
+			Port:    9092,
+		},
+	}
+
+	// Enable API
+	err := engine.EnableAPI(config.API)
+	if err != nil {
+		t.Fatalf("EnableAPI should not return error: %v", err)
+	}
+
+	// API server is not started until Start() is called
+	if engine.apiServer != nil {
+		t.Error("API server should not be initialized until Start() is called")
+	}
+
+	if !engine.apiConfig.Enabled {
+		t.Error("API config enabled should be true")
+	}
+
+	if engine.apiConfig.Port != 9092 {
+		t.Error("API config port should be 9092")
+	}
+
+	// Start the engine to initialize the API server
+	engine.Start()
+	defer engine.Stop()
+
+	if engine.apiServer == nil {
+		t.Error("API server should be initialized after Start()")
+	}
+}
+
+func TestEngineEnableAPIDisabled(t *testing.T) {
+	engine := NewEngine()
+
+	config := &Config{
+		API: APIConfig{
+			Enabled: false,
+			Port:    9092,
+		},
+	}
+
+	// Enable API with disabled config
+	err := engine.EnableAPI(config.API)
+	if err != nil {
+		t.Fatalf("EnableAPI should not return error even when disabled: %v", err)
+	}
+
+	if engine.apiServer != nil {
+		t.Error("API server should not be initialized when disabled")
+	}
+
+	if engine.apiConfig.Enabled {
+		t.Error("API config should be disabled")
+	}
+
+	if engine.apiConfig.Port != 9092 {
+		t.Error("API config port should be 9092")
+	}
+}
+
+func TestEngineEnableAPINilConfig(t *testing.T) {
+	engine := NewEngine()
+
+	// Enable API with invalid config (port 0)
+	invalidConfig := APIConfig{
+		Enabled: true,
+		Port:    0,
+	}
+	err := engine.EnableAPI(invalidConfig)
+	if err == nil {
+		t.Error("EnableAPI should return error with invalid config (port 0)")
+	}
+}
+
+func TestEngineHandleHealth(t *testing.T) {
+	engine := NewEngine()
+
+	// Create a test HTTP request
+	req := httptest.NewRequest("GET", "/health", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	engine.handleHealth(w, req)
+
+	// Check response
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+
+	body := w.Body.String()
+	var healthResp map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &healthResp); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+
+	if healthResp["status"] != "ok" {
+		t.Errorf("Expected status 'ok', got '%v'", healthResp["status"])
+	}
+
+	if _, exists := healthResp["time"]; !exists {
+		t.Error("Response should contain 'time' field")
+	}
+}
+
+func TestEngineHandleMetrics(t *testing.T) {
+	engine := NewEngine()
+
+	// Setup some mock data
+	engine.totalLogsProcessed = 42
+
+	// Configure output buffer to enable buffer stats
+	bufferConfig := OutputBufferConfig{
+		Enabled:       true,
+		Dir:           "/tmp/buffer",
+		MaxQueueSize:  100,
+		MaxRetries:    3,
+		RetryInterval: time.Second,
+		MaxRetryDelay: time.Minute,
+		FlushInterval: time.Minute,
+	}
+	engine.SetOutputBufferConfig(bufferConfig)
+
+	// Create a test HTTP request
+	req := httptest.NewRequest("GET", "/metrics", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	engine.handleMetrics(w, req)
+
+	// Check response
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+
+	body := w.Body.String()
+	var metricsResp map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &metricsResp); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+
+	if _, exists := metricsResp["buffer_enabled"]; !exists {
+		t.Error("Response should contain 'buffer_enabled' field")
+	}
+
+	if _, exists := metricsResp["buffer_stats"]; !exists {
+		t.Error("Response should contain 'buffer_stats' field")
+	}
+}
+
+func TestEngineHandleStatus(t *testing.T) {
+	engine := NewEngine()
+
+	// Setup some mock data
+	engine.totalLogsProcessed = 100
+	engine.startTime = time.Now().Add(-time.Hour) // Started 1 hour ago
+
+	// Add some mock inputs and outputs
+	input := newMockInput([]*Log{})
+	engine.AddInput("test-input", input)
+
+	output := newMockOutput()
+	pipeline := &OutputPipeline{
+		Name:    "test-output",
+		Output:  output,
+		Filters: []FilterPlugin{},
+		Sources: []string{},
+	}
+	if err := engine.AddOutputPipeline(pipeline); err != nil {
+		t.Fatalf("Failed to add output pipeline: %v", err)
+	}
+
+	// Create a test HTTP request
+	req := httptest.NewRequest("GET", "/status", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	engine.handleStatus(w, req)
+
+	// Check response
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+
+	body := w.Body.String()
+	var statusResp map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &statusResp); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+
+	// Check API section
+	if apiSection, exists := statusResp["api"]; exists {
+		apiMap := apiSection.(map[string]interface{})
+		if apiMap["enabled"] != false { // API not enabled in this test
+			t.Error("API should be disabled in this test")
+		}
+	}
+
+	// Check engine section
+	if engineSection, exists := statusResp["engine"]; exists {
+		engineMap := engineSection.(map[string]interface{})
+		if engineMap["total_logs_processed"] != float64(100) {
+			t.Errorf("Expected 100 total logs processed, got %v", engineMap["total_logs_processed"])
+		}
+		if engineMap["status"] != "running" {
+			t.Errorf("Expected status 'running', got '%v'", engineMap["status"])
+		}
+		if _, exists := engineMap["uptime_seconds"]; !exists {
+			t.Error("Response should contain 'uptime_seconds' field")
+		}
+	}
+
+	// Check inputs section
+	if inputsSection, exists := statusResp["inputs"]; exists {
+		inputsMap := inputsSection.(map[string]interface{})
+		if inputsMap["count"] != float64(1) {
+			t.Errorf("Expected 1 input, got %v", inputsMap["count"])
+		}
+		if inputsSlice, exists := inputsMap["names"]; exists {
+			names := inputsSlice.([]interface{})
+			if len(names) != 1 || names[0] != "test-input" {
+				t.Errorf("Expected input names ['test-input'], got %v", names)
+			}
+		}
+	}
+
+	// Check outputs section
+	if outputsSection, exists := statusResp["outputs"]; exists {
+		outputsMap := outputsSection.(map[string]interface{})
+		if outputsMap["count"] != float64(1) {
+			t.Errorf("Expected 1 output, got %v", outputsMap["count"])
+		}
+		if pipelinesSlice, exists := outputsMap["pipelines"]; exists {
+			pipelines := pipelinesSlice.([]interface{})
+			if len(pipelines) != 1 {
+				t.Errorf("Expected 1 pipeline, got %d", len(pipelines))
+			}
+		}
+	}
+}
+
+func TestEngineHandleStatusWithAPIEnabled(t *testing.T) {
+	engine := NewEngine()
+
+	// Enable API
+	config := &Config{
+		API: APIConfig{
+			Enabled: true,
+			Port:    9092,
+		},
+	}
+	if err := engine.EnableAPI(config.API); err != nil {
+		t.Fatalf("Failed to enable API: %v", err)
+	}
+
+	// Create a test HTTP request
+	req := httptest.NewRequest("GET", "/status", nil)
+	w := httptest.NewRecorder()
+
+	// Call the handler
+	engine.handleStatus(w, req)
+
+	// Check response
+	resp := w.Result()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+
+	body := w.Body.String()
+	var statusResp map[string]interface{}
+	if err := json.Unmarshal([]byte(body), &statusResp); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+
+	// Check API section when enabled
+	if apiSection, exists := statusResp["api"]; exists {
+		apiMap := apiSection.(map[string]interface{})
+		if apiMap["enabled"] != true {
+			t.Error("API should be enabled")
+		}
+		if apiMap["port"] != float64(9092) {
+			t.Errorf("Expected port 9092, got %v", apiMap["port"])
+		}
 	}
 }

@@ -22,6 +22,11 @@ output_buffer:
   dlq_enabled: true               # Enable Dead Letter Queue
   dlq_path: "/data/dlq"           # DLQ for permanently failed logs
 
+# API configuration - Metrics and status API
+api:
+  enabled: true                    # Enable metrics API server
+  port: 9092                       # Port for the API server
+
 inputs:
   # Docker container logs
   - type: docker

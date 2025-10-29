@@ -67,6 +67,18 @@ func main() {
 			bufferConfig.MaxQueueSize, bufferConfig.MaxRetries, bufferConfig.DLQEnabled)
 	}
 
+	// Configure API if enabled
+	apiConfig := config.API
+	if apiConfig.Port == 0 {
+		apiConfig = core.DefaultAPIConfig()
+	}
+	if apiConfig.Enabled {
+		if err := engine.EnableAPI(apiConfig); err != nil {
+			log.Fatalf("Failed to enable API: %v", err)
+		}
+		log.Printf("API server enabled on port %d", apiConfig.Port)
+	}
+
 	// Configure input plugin(s)
 	for i, inputDef := range config.Inputs {
 		inputName := inputDef.Name

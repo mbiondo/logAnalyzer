@@ -182,18 +182,19 @@ services:
       - loganalyzer_buffers:/data/buffers    # Buffer volume for retry queues
       - loganalyzer_dlq:/data/dlq            # Dead Letter Queue volume
     command: ["-config", "/config.yaml"]
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-      prometheus:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      demo-app:
-        condition: service_started
+    # depends_on:
+    #   elasticsearch:
+    #     condition: service_healthy
+    #   prometheus:
+    #     condition: service_healthy
+    #   kafka:
+    #     condition: service_healthy
+    #   demo-app:
+    #     condition: service_started
     ports:
       - "8080:8080"  # HTTP input endpoint
       - "9091:9091"  # Prometheus metrics endpoint
+      - "9093:9092"  # API metrics endpoint
     networks:
       - loganalyzer-network
     restart: unless-stopped
