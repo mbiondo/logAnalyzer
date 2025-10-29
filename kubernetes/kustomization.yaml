@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: loganalyzer
+
+# Namespace for all resources
+namespace: loganalyzer
+
+# Common labels applied to all resources
+commonLabels:
+  app: loganalyzer
+  managed-by: kustomize
+
+# Resources to include
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - persistent-volume-claims.yaml
+  - secrets.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+# Image transformations
+images:
+  - name: loganalyzer
+    newTag: latest  # Change this to your desired version
+
+# ConfigMap generator (alternative to configmap.yaml)
+# configMapGenerator:
+#   - name: loganalyzer-config
+#     files:
+#       - config.yaml
+
+# Secret generator (alternative to secrets.yaml)
+# secretGenerator:
+#   - name: elasticsearch-secret
+#     literals:
+#       - username=elastic
+#       - password=changeme
+
+# Replica count customization
+replicas:
+  - name: loganalyzer
+    count: 1
+
+# Resource patches for customization
+patchesStrategicMerge: []
+
+# JSON patches for advanced customization
+patches: []
