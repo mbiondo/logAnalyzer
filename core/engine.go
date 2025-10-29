@@ -381,11 +381,9 @@ func (e *Engine) Stop() {
 	}
 
 	// Close the input channel after inputs are stopped
-	if e.inputCh != nil {
-		close(e.inputCh)
-		// Don't set to nil to avoid potential races
-		// e.inputCh = nil
-	}
+	close(e.inputCh)
+	// Don't set to nil to avoid potential races
+	// e.inputCh = nil
 
 	// Wait for processing goroutine to finish
 	e.wg.Wait()
@@ -400,8 +398,10 @@ func (e *Engine) Stop() {
 	// Close API server
 	if e.apiServer != nil {
 		log.Println("Shutting down API server")
-		if err := e.apiServer.Close(); err != nil {
-			log.Printf("Error closing API server: %v", err)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := e.apiServer.Shutdown(ctx); err != nil {
+			log.Printf("Error shutting down API server: %v", err)
 		}
 	}
 

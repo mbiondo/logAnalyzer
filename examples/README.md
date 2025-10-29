@@ -63,7 +63,9 @@ docker-compose down
 | **Elasticsearch** | http://localhost:9200 | - | Direct API access |
 | **Elasticsearch Health** | http://localhost:9200/_cluster/health | - | Cluster health status |
 | **LogAnalyzer HTTP** | http://localhost:8080/logs | - | HTTP endpoint for log ingestion |
-| **LogAnalyzer Metrics API** | http://localhost:9093/health, /metrics, /status | - | REST API for service monitoring |
+| **LogAnalyzer Metrics API (Health)** | http://localhost:9093/health | - | REST API health check endpoint |
+| **LogAnalyzer Metrics API (Metrics)** | http://localhost:9093/metrics | - | REST API metrics endpoint |
+| **LogAnalyzer Metrics API (Status)** | http://localhost:9093/status | - | REST API status endpoint |
 | **LogAnalyzer Prometheus** | http://localhost:9091/metrics | - | Prometheus metrics endpoint |
 | **Kafka** | localhost:9092 | - | Kafka broker for log streaming |
 
