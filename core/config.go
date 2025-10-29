@@ -10,12 +10,27 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// APIConfig defines API server configuration
+type APIConfig struct {
+	Enabled bool `yaml:"enabled"` // Enable/disable API server
+	Port    int  `yaml:"port"`    // Port for the API server
+}
+
+// DefaultAPIConfig returns default API configuration
+func DefaultAPIConfig() APIConfig {
+	return APIConfig{
+		Enabled: false,
+		Port:    9090,
+	}
+}
+
 // Config represents the application configuration
 type Config struct {
 	Inputs       []PluginDefinition `yaml:"inputs"`
 	Outputs      []PluginDefinition `yaml:"outputs"`
 	Persistence  PersistenceConfig  `yaml:"persistence,omitempty"`
 	OutputBuffer OutputBufferConfig `yaml:"output_buffer,omitempty"`
+	API          APIConfig          `yaml:"api,omitempty"`
 }
 
 // PluginDefinition represents a generic plugin definition
@@ -79,6 +94,7 @@ func DefaultConfig() *Config {
 				},
 			},
 		},
+		API: DefaultAPIConfig(),
 	}
 }
 

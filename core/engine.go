@@ -2,9 +2,12 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"sync"
+	"time"
 )
 
 // OutputPipeline represents an output with its own filters and source restrictions
@@ -30,6 +33,15 @@ type Engine struct {
 	stopped      bool       // Flag to prevent multiple stops
 	mu           sync.Mutex // Protects stopped flag
 	nextInputID  int        // Monotonic counter for generating unique input names
+
+	// API server
+	apiServer *http.Server
+	apiConfig APIConfig
+
+	// Metrics
+	totalLogsProcessed int64
+	metricsMu          sync.RWMutex
+	startTime          time.Time
 }
 
 // InputPlugin interface for log input sources
@@ -60,6 +72,7 @@ func NewEngine() *Engine {
 		pipelines: []*OutputPipeline{},
 		ctx:       ctx,
 		cancel:    cancel,
+		startTime: time.Now(),
 	}
 }
 
@@ -76,6 +89,20 @@ func (e *Engine) SetPersistence(config PersistenceConfig) error {
 // SetOutputBufferConfig configures output buffering for all outputs
 func (e *Engine) SetOutputBufferConfig(config OutputBufferConfig) {
 	e.bufferConfig = config
+}
+
+// EnableAPI enables the metrics API server with the given configuration
+func (e *Engine) EnableAPI(config APIConfig) error {
+	if config.Port == 0 {
+		return fmt.Errorf("API port cannot be 0")
+	}
+	e.apiConfig = config
+	return nil
+}
+
+// EnableAPIDefault enables the metrics API server on the default port (9090)
+func (e *Engine) EnableAPIDefault() error {
+	return e.EnableAPI(DefaultAPIConfig())
 }
 
 // AddInput adds an input plugin to the engine with a name
@@ -149,9 +176,173 @@ func (e *Engine) Start() {
 		}
 	}
 
+	// Start API server if enabled
+	if e.apiConfig.Enabled {
+		e.startAPIServer()
+	}
+
 	e.wg.Add(1)
 	go e.processLogs()
 	log.Println("LogAnalyzer engine started")
+}
+
+// startAPIServer starts the metrics API server
+func (e *Engine) startAPIServer() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", e.handleHealth)
+	mux.HandleFunc("/metrics", e.handleMetrics)
+	mux.HandleFunc("/status", e.handleStatus)
+
+	e.apiServer = &http.Server{
+		Addr:    fmt.Sprintf(":%d", e.apiConfig.Port),
+		Handler: mux,
+	}
+
+	log.Printf("Starting API server on port %d", e.apiConfig.Port)
+	go func() {
+		if err := e.apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("API server error: %v", err)
+		}
+	}()
+}
+
+// handleHealth returns a simple health check
+func (e *Engine) handleHealth(w http.ResponseWriter, r *http.Request) {
+	e.mu.Lock()
+	stopped := e.stopped
+	e.mu.Unlock()
+
+	status := "ok"
+	if stopped {
+		status = "stopped"
+	}
+
+	response := map[string]string{
+		"status": status,
+		"time":   time.Now().Format(time.RFC3339),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Error encoding health response: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
+// handleMetrics returns detailed metrics in JSON format
+func (e *Engine) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	e.metricsMu.RLock()
+	totalLogs := e.totalLogsProcessed
+	e.metricsMu.RUnlock()
+
+	uptime := time.Since(e.startTime)
+
+	metrics := map[string]interface{}{
+		"total_logs_processed": totalLogs,
+		"uptime_seconds":       uptime.Seconds(),
+		"inputs_count":         len(e.inputs),
+		"pipelines_count":      len(e.pipelines),
+		"buffer_enabled":       e.bufferConfig.Enabled,
+	}
+
+	// Add buffer stats if enabled
+	if e.bufferConfig.Enabled {
+		bufferStats := make(map[string]interface{})
+		for _, pipeline := range e.pipelines {
+			if pipeline.Buffer != nil {
+				stats := pipeline.Buffer.GetStats()
+				bufferStats[pipeline.Name] = map[string]interface{}{
+					"total_enqueued":   stats.TotalEnqueued,
+					"total_delivered":  stats.TotalDelivered,
+					"total_retried":    stats.TotalRetried,
+					"total_failed":     stats.TotalFailed,
+					"total_dlq":        stats.TotalDLQ,
+					"current_queued":   stats.CurrentQueued,
+					"current_retrying": stats.CurrentRetrying,
+				}
+			}
+		}
+		metrics["buffer_stats"] = bufferStats
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(metrics); err != nil {
+		log.Printf("Error encoding metrics response: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
+// handleStatus returns comprehensive status information
+func (e *Engine) handleStatus(w http.ResponseWriter, r *http.Request) {
+	e.mu.Lock()
+	stopped := e.stopped
+	e.mu.Unlock()
+
+	e.metricsMu.RLock()
+	totalLogs := e.totalLogsProcessed
+	e.metricsMu.RUnlock()
+
+	uptime := time.Since(e.startTime)
+
+	status := map[string]interface{}{
+		"engine": map[string]interface{}{
+			"status":               map[bool]string{true: "stopped", false: "running"}[stopped],
+			"uptime_seconds":       uptime.Seconds(),
+			"start_time":           e.startTime.Format(time.RFC3339),
+			"total_logs_processed": totalLogs,
+		},
+		"inputs": map[string]interface{}{
+			"count": len(e.inputs),
+			"names": func() []string {
+				names := make([]string, 0, len(e.inputs))
+				for name := range e.inputs {
+					names = append(names, name)
+				}
+				return names
+			}(),
+		},
+		"outputs": map[string]interface{}{
+			"count": len(e.pipelines),
+			"pipelines": func() []map[string]interface{} {
+				pipelines := make([]map[string]interface{}, 0, len(e.pipelines))
+				for _, p := range e.pipelines {
+					pipeline := map[string]interface{}{
+						"name":       p.Name,
+						"has_buffer": p.Buffer != nil,
+						"filters":    len(p.Filters),
+						"sources":    p.Sources,
+					}
+					if p.Buffer != nil {
+						stats := p.Buffer.GetStats()
+						pipeline["buffer_stats"] = map[string]interface{}{
+							"total_enqueued":   stats.TotalEnqueued,
+							"total_delivered":  stats.TotalDelivered,
+							"total_retried":    stats.TotalRetried,
+							"total_failed":     stats.TotalFailed,
+							"total_dlq":        stats.TotalDLQ,
+							"current_queued":   stats.CurrentQueued,
+							"current_retrying": stats.CurrentRetrying,
+						}
+					}
+					pipelines = append(pipelines, pipeline)
+				}
+				return pipelines
+			}(),
+		},
+		"persistence": map[string]interface{}{
+			"enabled": e.persistence != nil,
+		},
+		"api": map[string]interface{}{
+			"enabled": e.apiConfig.Enabled,
+			"port":    e.apiConfig.Port,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(status); err != nil {
+		log.Printf("Error encoding status response: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
 }
 
 // processRecoveredLogs handles logs recovered from persistence
@@ -191,6 +382,8 @@ func (e *Engine) Stop() {
 
 	// Close the input channel after inputs are stopped
 	close(e.inputCh)
+	// Don't set to nil to avoid potential races
+	// e.inputCh = nil
 
 	// Wait for processing goroutine to finish
 	e.wg.Wait()
@@ -199,6 +392,16 @@ func (e *Engine) Stop() {
 	if e.persistence != nil {
 		if err := e.persistence.Close(); err != nil {
 			log.Printf("Error closing persistence: %v", err)
+		}
+	}
+
+	// Close API server
+	if e.apiServer != nil {
+		log.Println("Shutting down API server")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := e.apiServer.Shutdown(ctx); err != nil {
+			log.Printf("Error shutting down API server: %v", err)
 		}
 	}
 
@@ -238,7 +441,9 @@ func (e *Engine) ReloadConfig(newConfig *Config, createInputFunc func(string, st
 	}
 
 	// Close the input channel after inputs are stopped
-	close(e.inputCh)
+	if e.inputCh != nil {
+		close(e.inputCh)
+	}
 
 	// Wait for processing goroutine to finish
 	e.wg.Wait()
@@ -295,6 +500,11 @@ func (e *Engine) processLogs() {
 			if !ok {
 				return
 			}
+
+			// Increment total logs processed counter
+			e.metricsMu.Lock()
+			e.totalLogsProcessed++
+			e.metricsMu.Unlock()
 
 			log.Printf("[ENGINE] Received log from '%s': %s - %s", logEntry.Source, logEntry.Level, logEntry.Message)
 

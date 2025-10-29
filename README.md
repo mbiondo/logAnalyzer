@@ -30,7 +30,7 @@ docker-compose up -d
 # - Grafana Dashboards: http://localhost:3000 (admin/admin)
 # - Kibana: http://localhost:5601  
 # - Prometheus: http://localhost:9090
-# - LogAnalyzer Metrics: http://localhost:9091/metrics
+# - LogAnalyzer Metrics API: http://localhost:9093/health, /metrics, /status
 # - HTTP Log Endpoint: http://localhost:8080/logs
 ```
 
@@ -267,7 +267,29 @@ LogAnalyzer uses a pipeline architecture where each output is independent:
 
 ## 🔄 Production Features
 
-### 1. Plugin Resilience (High Availability)
+### 1. Metrics API (Service Monitoring)
+
+**REST API exposing real-time service metrics, health status, and pipeline information.**
+
+**Configuration** (optional - enabled by default):
+```yaml
+api:
+  enabled: true    # Enable/disable API server
+  port: 9092       # API server port
+```
+
+**Available endpoints:**
+- `/health` - Basic health check
+- `/metrics` - Buffer statistics and metrics
+- `/status` - Complete service status
+
+**Use cases:**
+- Health monitoring and alerting
+- Performance dashboards
+- Troubleshooting pipeline issues
+- Integration with monitoring systems
+
+### 2. Plugin Resilience (High Availability)
 
 **Service starts and operates even when dependencies are unavailable.**
 
@@ -298,7 +320,7 @@ outputs:
 [RESILIENCE:elasticsearch] Health check passed, plugin recovered
 ```
 
-### 2. Output Buffering (Zero Log Loss)
+### 3. Output Buffering (Zero Log Loss)
 
 **Automatic retry with Dead Letter Queue for failed deliveries.**
 
@@ -324,7 +346,7 @@ outputs:
 
 **📖 Full documentation:** [OUTPUT_BUFFERING.md](OUTPUT_BUFFERING.md)
 
-### 3. Write-Ahead Logging (Crash Recovery)
+### 4. Write-Ahead Logging (Crash Recovery)
 
 **Persist logs to disk before processing to prevent loss during crashes.**
 
@@ -345,7 +367,7 @@ persistence:
 3. On restart → Recover all unprocessed logs from WAL
 4. Old WAL files auto-deleted after retention period
 
-### 4. Hot Reload (Zero Downtime Configuration)
+### 5. Hot Reload (Zero Downtime Configuration)
 
 **Update configuration without restarting.**
 

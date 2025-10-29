@@ -63,7 +63,10 @@ docker-compose down
 | **Elasticsearch** | http://localhost:9200 | - | Direct API access |
 | **Elasticsearch Health** | http://localhost:9200/_cluster/health | - | Cluster health status |
 | **LogAnalyzer HTTP** | http://localhost:8080/logs | - | HTTP endpoint for log ingestion |
-| **LogAnalyzer Metrics** | http://localhost:9091/metrics | - | Prometheus metrics endpoint |
+| **LogAnalyzer Metrics API (Health)** | http://localhost:9093/health | - | REST API health check endpoint |
+| **LogAnalyzer Metrics API (Metrics)** | http://localhost:9093/metrics | - | REST API metrics endpoint |
+| **LogAnalyzer Metrics API (Status)** | http://localhost:9093/status | - | REST API status endpoint |
+| **LogAnalyzer Prometheus** | http://localhost:9091/metrics | - | Prometheus metrics endpoint |
 | **Kafka** | localhost:9092 | - | Kafka broker for log streaming |
 
 ## 🎯 What's Running
@@ -75,10 +78,11 @@ docker-compose down
 3. **Prometheus** (9090) - Metrics collection
 4. **Grafana** (3000) - Unified dashboards
 5. **Kafka** (9092) - Log streaming and messaging
-6. **LogAnalyzer** (8080, 9091) - Log processing with:
+6. **LogAnalyzer** (8080, 9091, 9093) - Log processing with:
    - **Write-Ahead Logging (WAL)** - Crash recovery
    - **Output Buffering** - Retry logic with DLQ
    - **Plugin Resilience** - Auto-reconnection
+   - **REST API** - Service monitoring and metrics
 7. **Demo App** - Generates sample logs
 
 ### Resilience Features
@@ -184,6 +188,19 @@ curl -X POST http://localhost:8080/logs \
 curl -X POST http://localhost:8080/logs \
   -H "Content-Type: text/plain" \
   -d "Simple text log message"
+```
+
+### Test LogAnalyzer API
+
+```bash
+# Health check
+curl http://localhost:9093/health
+
+# Service metrics (buffer stats, etc.)
+curl http://localhost:9093/metrics
+
+# Complete service status
+curl http://localhost:9093/status
 ```
 
 ### Send Test Logs to Both Kafka and HTTP
@@ -425,6 +442,28 @@ curl http://localhost:9090/api/v1/targets
 
 # Check Prometheus logs
 docker logs loganalyzer-prometheus
+```
+
+### LogAnalyzer API not responding
+
+```bash
+# Check if API port is accessible
+curl http://localhost:9093/health
+
+# Windows PowerShell
+Invoke-WebRequest http://localhost:9093/health
+
+# Check LogAnalyzer logs for API startup
+docker logs loganalyzer-service 2>&1 | grep -i "api\|server"
+
+# Windows PowerShell
+docker logs loganalyzer-service 2>&1 | Select-String "api|server" -CaseSensitive:$false
+
+# Verify API configuration in loganalyzer.yaml
+docker exec loganalyzer-service cat /config/loganalyzer.yaml | grep -A 5 "api"
+
+# Windows PowerShell
+docker exec loganalyzer-service cat /config/loganalyzer.yaml | Select-String "api" -Context 5
 ```
 
 ### Grafana dashboard not loading
