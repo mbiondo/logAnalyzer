@@ -6,6 +6,7 @@ toolchain go1.24.3
 
 require (
 	github.com/elastic/go-elasticsearch/v8 v8.19.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/segmentio/kafka-go v0.4.49
 	gopkg.in/yaml.v3 v3.0.1
@@ -15,7 +16,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.7.0 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect

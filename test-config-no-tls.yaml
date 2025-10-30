@@ -1,0 +1,30 @@
+# Simple LogAnalyzer Configuration for Testing (No TLS)
+# This configuration tests basic functionality without TLS
+
+# Persistence configuration (optional)
+persistence:
+  enabled: false
+
+# Output buffer configuration (optional)
+output_buffer:
+  enabled: false
+
+# API configuration (optional)
+api:
+  enabled: false
+
+inputs:
+  # HTTP Input without TLS
+  - type: http
+    name: "http-test"
+    config:
+      port: "8080"
+      # No TLS configuration - should work without it
+
+outputs:
+  # Console output for testing
+  - type: console
+    name: "console-test"
+    sources: []
+    config:
+      format: "json"

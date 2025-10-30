@@ -1,0 +1,35 @@
+# Simple TLS test configuration
+# Only HTTP input with TLS and console output
+
+# Persistence configuration (optional)
+persistence:
+  enabled: false
+
+# Output buffer configuration (optional)
+output_buffer:
+  enabled: false
+
+# API configuration (optional)
+api:
+  enabled: true
+  port: 9090
+
+inputs:
+  # HTTP input with TLS (HTTPS server)
+  - type: http
+    name: "http-tls-test"
+    config:
+      port: "8443"
+      cert_file: "examples/scripts/certs/server-cert.pem"
+      key_file: "examples/scripts/certs/server-key.pem"
+      tls:
+        enabled: true
+        ca_cert_file: "examples/scripts/certs/ca-cert.pem"
+
+outputs:
+  # Console output (no TLS needed)
+  - type: console
+    name: "console-test"
+    sources: []
+    config:
+      format: "text"

@@ -2,7 +2,6 @@ package kafkainput
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mbiondo/logAnalyzer/core"
+	"github.com/mbiondo/logAnalyzer/pkg/tlsconfig"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
 )
@@ -22,17 +22,16 @@ func init() {
 
 // Config represents Kafka input configuration values supplied via YAML.
 type Config struct {
-	Brokers            []string `yaml:"brokers"`
-	Topic              string   `yaml:"topic"`
-	GroupID            string   `yaml:"group_id,omitempty"`
-	StartOffset        string   `yaml:"start_offset,omitempty"`
-	MinBytes           int      `yaml:"min_bytes,omitempty"`
-	MaxBytes           int      `yaml:"max_bytes,omitempty"`
-	ClientID           string   `yaml:"client_id,omitempty"`
-	Username           string   `yaml:"username,omitempty"`
-	Password           string   `yaml:"password,omitempty"`
-	TLS                bool     `yaml:"tls,omitempty"`
-	InsecureSkipVerify bool     `yaml:"insecure_skip_verify,omitempty"`
+	Brokers     []string         `yaml:"brokers"`
+	Topic       string           `yaml:"topic"`
+	GroupID     string           `yaml:"group_id,omitempty"`
+	StartOffset string           `yaml:"start_offset,omitempty"`
+	MinBytes    int              `yaml:"min_bytes,omitempty"`
+	MaxBytes    int              `yaml:"max_bytes,omitempty"`
+	ClientID    string           `yaml:"client_id,omitempty"`
+	Username    string           `yaml:"username,omitempty"`
+	Password    string           `yaml:"password,omitempty"`
+	TLS         tlsconfig.Config `yaml:"tls,omitempty"` // TLS configuration
 }
 
 // NewKafkaInputFromConfig builds a Kafka input plugin from generic configuration.
@@ -47,6 +46,11 @@ func NewKafkaInputFromConfig(config map[string]any) (any, error) {
 	}
 	if cfg.Topic == "" {
 		return nil, fmt.Errorf("kafka input requires a topic")
+	}
+
+	// Validate TLS config
+	if err := cfg.TLS.Validate(); err != nil {
+		return nil, err
 	}
 
 	startOffset, err := parseStartOffset(cfg.StartOffset)
@@ -82,10 +86,16 @@ func NewKafkaInputFromConfig(config map[string]any) (any, error) {
 		dialer.ClientID = cfg.ClientID
 	}
 
-	if cfg.TLS {
-		dialer.TLS = &tls.Config{InsecureSkipVerify: cfg.InsecureSkipVerify}
+	// Configure TLS
+	if cfg.TLS.Enabled {
+		tlsConfig, err := cfg.TLS.NewTLSConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create TLS config: %w", err)
+		}
+		dialer.TLS = tlsConfig
 	}
 
+	// Configure SASL
 	if cfg.Username != "" && cfg.Password != "" {
 		mechanism := plain.Mechanism{
 			Username: cfg.Username,

@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/mbiondo/logAnalyzer/core"
+	"github.com/mbiondo/logAnalyzer/pkg/tlsconfig"
 
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
@@ -23,13 +25,14 @@ func init() {
 
 // Config represents Elasticsearch output configuration
 type Config struct {
-	Addresses []string `yaml:"addresses"`            // Elasticsearch addresses
-	Username  string   `yaml:"username,omitempty"`   // Basic auth username
-	Password  string   `yaml:"password,omitempty"`   // Basic auth password
-	APIKey    string   `yaml:"api_key,omitempty"`    // API key authentication
-	Index     string   `yaml:"index"`                // Index name (supports date templates)
-	Timeout   int      `yaml:"timeout,omitempty"`    // Request timeout in seconds
-	BatchSize int      `yaml:"batch_size,omitempty"` // Batch size for bulk operations
+	Addresses []string         `yaml:"addresses"`            // Elasticsearch addresses
+	Username  string           `yaml:"username,omitempty"`   // Basic auth username
+	Password  string           `yaml:"password,omitempty"`   // Basic auth password
+	APIKey    string           `yaml:"api_key,omitempty"`    // API key authentication
+	Index     string           `yaml:"index"`                // Index name (supports date templates)
+	Timeout   int              `yaml:"timeout,omitempty"`    // Request timeout in seconds
+	BatchSize int              `yaml:"batch_size,omitempty"` // Batch size for bulk operations
+	TLS       tlsconfig.Config `yaml:"tls,omitempty"`        // TLS configuration
 }
 
 // ElasticsearchOutput sends logs to Elasticsearch
@@ -70,13 +73,31 @@ func NewElasticsearchOutput(config Config) (*ElasticsearchOutput, error) {
 		config.BatchSize = 100
 	}
 
+	// Validate TLS config
+	if err := config.TLS.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid TLS config: %w", err)
+	}
+
 	// Configure Elasticsearch client
 	esCfg := elasticsearch.Config{
 		Addresses: config.Addresses,
 		Username:  config.Username,
 		Password:  config.Password,
 		APIKey:    config.APIKey,
-		Transport: nil, // Use default transport
+	}
+
+	// Configure TLS transport if enabled
+	if config.TLS.Enabled {
+		tlsConfig, err := config.TLS.NewTLSConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create TLS config: %w", err)
+		}
+
+		esCfg.Transport = &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
+
+		log.Printf("[ELASTICSEARCH] TLS enabled (InsecureSkipVerify=%v)", tlsConfig.InsecureSkipVerify)
 	}
 
 	client, err := elasticsearch.NewClient(esCfg)

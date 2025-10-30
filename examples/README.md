@@ -593,62 +593,387 @@ demo-app:
 - Enable TLS/SSL
 - Configure proper network isolation
 
-## 📚 Next Steps
+## � TLS/MTLS Configuration
 
-- Review pipeline architecture in main README.md
-- Use `scripts/test-data.ps1` or `scripts/test-data.sh` to generate test data
-- Customize filters for your use case
-- Add more input sources (HTTP, File)
-- Create custom Grafana dashboards
-- Set up alerts in Grafana
-- Export dashboards for backup
+LogAnalyzer supports secure communication using TLS and Mutual TLS (MTLS) for all inputs and outputs. This section explains how to set up and test TLS configurations.
 
-## 💡 Example Use Cases
+### Generate Test Certificates
 
-### Monitor Multiple Apps
+First, generate test certificates for development and testing:
 
-```yaml
-inputs:
-  - type: docker
-    name: "frontend"
-    config:
-      container_filter: ["nginx-*", "webapp-*"]
-  
-  - type: docker
-    name: "backend"
-    config:
-      container_filter: ["api-*", "worker-*"]
+```bash
+# Linux/Mac
+cd examples
+./scripts/certs/generate-certs.sh
 
-outputs:
-  # Frontend logs → Elasticsearch
-  - type: elasticsearch
-    sources: ["frontend"]
-    config:
-      index: "frontend-{yyyy.MM.dd}"
-  
-  # Backend logs → Elasticsearch
-  - type: elasticsearch
-    sources: ["backend"]
-    config:
-      index: "backend-{yyyy.MM.dd}"
+# Windows PowerShell
+cd examples
+.\scripts\certs\generate-certs.ps1
 ```
 
-### Alert on Critical Errors
+This creates:
+- `certs/ca.pem` - Certificate Authority
+- `certs/server.pem` / `server.key` - Server certificate for HTTPS
+- `certs/client.pem` / `client.key` - Client certificate for MTLS
+- `certs/server-cert.pem` - Combined server cert + key
 
+### Test Certificates
+
+Verify your certificates are valid:
+
+```bash
+# Linux/Mac
+./test-certs.sh
+
+# Windows PowerShell
+.\test-certs.ps1
+```
+
+### TLS Configuration Example
+
+Use the complete TLS example configuration:
+
+```bash
+# Start with TLS configuration
+loganalyzer -config examples/loganalyzer-tls.yaml
+```
+
+The `loganalyzer-tls.yaml` includes:
+- **HTTPS Input** with server certificate validation
+- **Kafka Input** with TLS and optional MTLS
+- **Elasticsearch Output** with TLS and optional MTLS
+- **Slack Output** with custom CA support
+
+### Test HTTPS Input
+
+```bash
+# Test basic HTTPS (skip certificate verification)
+curl -k -X POST https://localhost:8443/logs \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Test HTTPS log","level":"info"}'
+
+# Test with client certificate (MTLS)
+curl --cacert certs/ca.pem \
+     --cert certs/client.pem \
+     --key certs/client.key \
+     -X POST https://localhost:8443/logs \
+     -H "Content-Type: application/json" \
+     -d '{"message":"Test MTLS log","level":"info"}'
+```
+
+### TLS Configuration Options
+
+#### Server TLS (HTTPS Input)
+```yaml
+inputs:
+  - type: http
+    config:
+      port: "8443"
+      tls:
+        enabled: true
+        # Server certificate validation (for client auth)
+        ca_cert: "./examples/certs/ca.pem"        # CA for client verification
+        insecure_skip_verify: false
+        min_version: "1.2"
+        max_version: "1.3"
+      # Server certificates (required)
+      cert_file: "./examples/certs/server.pem"
+      key_file: "./examples/certs/server.key"
+```
+
+#### Client TLS (Outputs)
 ```yaml
 outputs:
-  - type: slack
-    sources: []
-    filters:
-      - type: level
-        config:
-          levels: ["ERROR"]
-      - type: regex
-        config:
-          patterns: ["CRITICAL", "FATAL"]
-          mode: "include"
+  - type: elasticsearch
     config:
-      webhook_url: "..."
+      addresses: ["https://es.example.com:9200"]
+      tls:
+        enabled: true
+        # Server certificate validation
+        ca_cert: "./examples/certs/ca.pem"
+        # Client certificate for MTLS
+        client_cert: "./examples/certs/client.pem"
+        client_key: "./examples/certs/client.key"
+        min_version: "1.2"
+        server_name: "es.example.com"
+```
+
+#### Kafka TLS
+```yaml
+inputs:
+  - type: kafka
+    config:
+      brokers: ["kafka.example.com:9093"]
+      tls:
+        enabled: true
+        ca_cert: "./examples/certs/ca.pem"
+        # Optional MTLS
+        client_cert: "./examples/certs/client.pem"
+        client_key: "./examples/certs/client.key"
+        server_name: "kafka.example.com"
+```
+
+### Certificate Files
+
+| File | Purpose | Required For |
+|------|---------|--------------|
+| `ca.pem` | Certificate Authority | Server certificate validation |
+| `server.pem` | Server certificate | HTTPS server |
+| `server.key` | Server private key | HTTPS server |
+| `client.pem` | Client certificate | MTLS authentication |
+| `client.key` | Client private key | MTLS authentication |
+
+### Security Best Practices
+
+1. **Never use test certificates in production**
+2. **Use strong passwords for private keys**
+3. **Restrict file permissions** (`chmod 600 *.key`)
+4. **Enable certificate pinning** when possible
+5. **Use short certificate lifetimes** (90 days max)
+6. **Monitor certificate expiration**
+7. **Use MTLS for high-security environments**
+
+### Troubleshooting TLS
+
+#### Certificate Errors
+```bash
+# Check certificate validity
+openssl x509 -in certs/server.pem -text -noout
+
+# Verify certificate chain
+openssl verify -CAfile certs/ca.pem certs/server.pem
+
+# Test server certificate
+openssl s_client -connect localhost:8443 -CAfile certs/ca.pem
+```
+
+#### Common Issues
+- **Certificate expired**: Regenerate certificates
+- **Wrong hostname**: Check `server_name` in config
+- **Permission denied**: Fix file permissions (`chmod 600 *.key`)
+- **MTLS required but not provided**: Add client certificate to request
+
+#### Debug TLS Connections
+```bash
+# Enable debug logging
+export SSLKEYLOGFILE=/tmp/ssl.log
+# Then run curl with --trace -
+
+# Check LogAnalyzer logs for TLS errors
+docker logs loganalyzer-service 2>&1 | grep -i tls
+```
+
+### Production TLS Setup
+
+For production environments:
+
+1. **Use proper certificates** from trusted CA
+2. **Enable HSTS** headers
+3. **Configure certificate rotation**
+4. **Use TLS 1.3** minimum
+5. **Enable OCSP stapling**
+6. **Monitor certificate expiration**
+7. **Use strong cipher suites**
+
+Example production config:
+```yaml
+tls:
+  enabled: true
+  min_version: "1.3"
+  max_version: "1.3"
+  ca_cert: "/etc/ssl/certs/ca.pem"
+  client_cert: "/etc/ssl/certs/client.pem"
+  client_key: "/etc/ssl/private/client.key"
+```
+
+## 🔒 TLS/MTLS Configuration with Docker
+
+LogAnalyzer supports secure communication using TLS and Mutual TLS (MTLS) for all inputs and outputs. This section explains how to set up and test TLS configurations with Docker Compose.
+
+### Generate Test Certificates
+
+First, generate test certificates for development and testing:
+
+```bash
+# Linux/Mac
+cd examples
+./scripts/certs/generate-certs.sh
+
+# Windows PowerShell
+cd examples
+.\scripts\certs\generate-certs.ps1
+```
+
+This creates:
+- `scripts/certs/ca-cert.pem` - Certificate Authority
+- `scripts/certs/server-cert.pem` / `server-key.pem` - Server certificate for HTTPS
+- `scripts/certs/client-cert.pem` / `client-key.pem` - Client certificate for MTLS
+
+### Start TLS-Enabled Services
+
+Use the TLS-enabled Docker Compose configuration:
+
+```bash
+# Start all services with TLS
+docker-compose -f docker-compose-tls.yml up -d
+
+# Or start only LogAnalyzer with TLS
+docker-compose -f docker-compose-tls.yml up -d loganalyzer
+```
+
+### Test TLS Functionality
+
+Use the provided test scripts to verify TLS is working:
+
+```bash
+# Linux/Mac
+./test-tls-docker.sh
+
+# Windows PowerShell
+.\test-tls-docker.ps1
+```
+
+### TLS Configuration Details
+
+The `docker-compose-tls.yml` and `loganalyzer-tls.yaml` include:
+
+- **HTTPS Input** on port 8443 with server certificate validation
+- **HTTP Input** on port 8080 (backward compatibility)
+- **Certificate mounting** from `./scripts/certs/` to `/certs/` in container
+- **Kafka Input** with TLS configuration (commented for demo)
+- **Elasticsearch Output** with TLS configuration (commented for demo)
+
+### Test HTTPS Input
+
+```bash
+# Test basic HTTPS (skip certificate verification for self-signed certs)
+curl -k -X POST https://localhost:8443/logs \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Test HTTPS log","level":"info"}'
+
+# Test HTTP (should still work)
+curl -X POST http://localhost:8080/logs \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Test HTTP log","level":"info"}'
+```
+
+### Test Health and Metrics
+
+```bash
+# Health check
+curl http://localhost:9093/health
+
+# Prometheus metrics
+curl http://localhost:9091/metrics
+```
+
+### TLS Configuration Options
+
+#### Server TLS (HTTPS Input)
+```yaml
+inputs:
+  - type: http
+    config:
+      port: "8443"
+      tls:
+        enabled: true
+        # Server certificate validation (for client auth)
+        ca_cert: "/certs/ca-cert.pem"        # CA for client verification
+        insecure_skip_verify: false
+        min_version: "1.2"
+        max_version: "1.3"
+      # Server certificates (required)
+      cert_file: "/certs/server-cert.pem"
+      key_file: "/certs/server-key.pem"
+```
+
+#### Client TLS (Outputs)
+```yaml
+outputs:
+  - type: elasticsearch
+    config:
+      addresses: ["https://elasticsearch:9200"]
+      tls:
+        enabled: true
+        # Server certificate validation
+        ca_cert: "/certs/ca-cert.pem"
+        # Client certificate for MTLS
+        client_cert: "/certs/client-cert.pem"
+        client_key: "/certs/client-key.pem"
+        min_version: "1.2"
+```
+
+### Certificate Files
+
+| File | Purpose | Required For |
+|------|---------|--------------|
+| `ca-cert.pem` | Certificate Authority | Server certificate validation |
+| `server-cert.pem` | Server certificate | HTTPS server |
+| `server-key.pem` | Server private key | HTTPS server |
+| `client-cert.pem` | Client certificate | MTLS authentication |
+| `client-key.pem` | Client private key | MTLS authentication |
+
+### Security Best Practices
+
+1. **Never use test certificates in production**
+2. **Use strong passwords for private keys**
+3. **Restrict file permissions** (`chmod 600 *.key`)
+4. **Enable certificate pinning** when possible
+5. **Use short certificate lifetimes** (90 days max)
+6. **Monitor certificate expiration**
+7. **Use MTLS for high-security environments**
+
+### Troubleshooting TLS
+
+#### Certificate Errors
+```bash
+# Check certificate validity
+openssl x509 -in scripts/certs/server-cert.pem -text -noout
+
+# Verify certificate chain
+openssl verify -CAfile scripts/certs/ca-cert.pem scripts/certs/server-cert.pem
+
+# Test server certificate
+openssl s_client -connect localhost:8443 -CAfile scripts/certs/ca-cert.pem
+```
+
+#### Common Issues
+- **Certificate expired**: Regenerate certificates
+- **Wrong hostname**: Check `server_name` in config
+- **Permission denied**: Fix file permissions (`chmod 600 *.key`)
+- **MTLS required but not provided**: Add client certificate to request
+
+#### Debug TLS Connections
+```bash
+# Enable debug logging
+export SSLKEYLOGFILE=/tmp/ssl.log
+# Then run curl with --trace -
+
+# Check LogAnalyzer logs for TLS errors
+docker-compose -f docker-compose-tls.yml logs loganalyzer 2>&1 | grep -i tls
+```
+
+### Production TLS Setup
+
+For production environments:
+
+1. **Use proper certificates** from trusted CA
+2. **Enable HSTS** headers
+3. **Configure certificate rotation**
+4. **Use TLS 1.3** minimum
+5. **Enable OCSP stapling**
+6. **Monitor certificate expiration**
+7. **Use strong cipher suites**
+
+Example production config:
+```yaml
+tls:
+  enabled: true
+  min_version: "1.3"
+  max_version: "1.3"
+  ca_cert: "/etc/ssl/certs/ca.pem"
+  client_cert: "/etc/ssl/certs/client.pem"
+  client_key: "/etc/ssl/private/client.key"
 ```
 
 ---
