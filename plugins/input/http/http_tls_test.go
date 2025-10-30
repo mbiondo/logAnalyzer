@@ -91,7 +91,11 @@ func writeCertToFile(t *testing.T, filename string, cert *x509.Certificate) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			t.Errorf("Failed to close file %s: %v", filename, closeErr)
+		}
+	}()
 
 	err = pem.Encode(file, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
 	if err != nil {
@@ -104,7 +108,11 @@ func writeKeyToFile(t *testing.T, filename string, key *rsa.PrivateKey) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			t.Errorf("Failed to close file %s: %v", filename, closeErr)
+		}
+	}()
 
 	err = pem.Encode(file, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
 	if err != nil {
@@ -151,7 +159,11 @@ func TestHTTPInputWithTLS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start HTTP input with TLS: %v", err)
 	}
-	defer input.Stop()
+	defer func() {
+		if stopErr := input.Stop(); stopErr != nil {
+			t.Errorf("Failed to stop input: %v", stopErr)
+		}
+	}()
 
 	// Wait for the server to start and bind to a port
 	time.Sleep(500 * time.Millisecond)
@@ -186,7 +198,11 @@ func TestHTTPInputWithTLS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to make HTTPS request: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("Failed to close response body: %v", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)

@@ -5,8 +5,9 @@
 [![GitHub Issues](https://img.shields.io/github/issues/mbiondo/logAnalyzer)](https://github.com/mbiondo/logAnalyzer/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/mbiondo/logAnalyzer)](https://github.com/mbiondo/logAnalyzer/stargazers)
 [![Test Coverage](https://img.shields.io/badge/coverage-71.3%25-brightgreen.svg)](TESTING_REPORT.md)
+[![TLS Support](https://img.shields.io/badge/TLS-MTLS-blue.svg)](TEST_TLS.md)
 
-A flexible, production-ready log processing system with intelligent routing, automatic failover, and zero-downtime operations. Collect logs from multiple sources, filter intelligently, and route to multiple destinations with per-output configuration.
+A flexible, production-ready log processing system with intelligent routing, automatic failover, and zero-downtime operations. Collect logs from multiple sources, filter intelligently, and route to multiple destinations with per-output configuration. Features end-to-end TLS encryption and mutual TLS authentication for secure log processing.
 
 ## ✨ Why LogAnalyzer?
 
@@ -15,7 +16,8 @@ A flexible, production-ready log processing system with intelligent routing, aut
 - 🎯 **Smart Routing**: Route specific inputs to specific outputs with independent filtering
 - ⚡ **Hot Reload**: Update configuration without restarting or dropping logs
 - 🔌 **Extensible**: Plugin architecture - add custom inputs, outputs, and filters
-- 📊 **Production Ready**: 71% test coverage with race condition verification
+- � **Secure by Default**: End-to-end TLS encryption with optional mutual TLS authentication
+- �📊 **Production Ready**: 71% test coverage with race condition verification
 
 ## 🚀 Quick Start
 
@@ -32,6 +34,25 @@ docker-compose up -d
 # - Prometheus: http://localhost:9090
 # - LogAnalyzer Metrics API: http://localhost:9093/health, /metrics, /status
 # - HTTP Log Endpoint: http://localhost:8080/logs
+```
+
+### Try with TLS/MTLS Security
+
+```bash
+# Generate test certificates (one-time setup)
+cd examples/scripts/certs
+./generate-certs.sh  # Linux/Mac
+# OR
+.\generate-certs.ps1  # Windows
+
+# Start secure version with HTTPS and MTLS
+cd examples
+docker-compose -f docker-compose-tls.yml up -d
+
+# Access Services:
+# - HTTPS Log Endpoint: https://localhost:8443/logs (requires client certificate)
+# - Grafana Dashboards: http://localhost:3000 (admin/admin)
+# - Kibana: https://localhost:5601 (if configured with TLS)
 ```
 
 **📖 Full setup guide:** [examples/README.md](examples/README.md)
@@ -79,13 +100,19 @@ inputs:
       container_filter: ["nginx-*", "webapp-*"]  # String or array
       stream: "stdout"
 
-  # HTTP endpoint for external logs
+  # HTTP endpoint for external logs (with optional TLS)
   - type: http
     name: "external-api"
     config:
       port: "8080"
+      # Optional TLS configuration for HTTPS
+      # tls:
+      #   enabled: true
+      #   ca_cert: "/path/to/ca-cert.pem"
+      #   cert_file: "/path/to/server-cert.pem"
+      #   key_file: "/path/to/server-key.pem"
 
-  # Kafka consumer
+  # Kafka consumer (with optional TLS)
   - type: kafka
     name: "event-stream"
     config:
@@ -93,6 +120,12 @@ inputs:
       topic: "application-logs"
       group_id: "loganalyzer-group"
       start_offset: "latest"
+      # Optional TLS configuration
+      # tls:
+      #   enabled: true
+      #   ca_cert: "/path/to/ca-cert.pem"
+      #   client_cert: "/path/to/client-cert.pem"
+      #   client_key: "/path/to/client-key.pem"
       # Resilience (optional - enabled by default)
       resilient: true
       retry_interval: 10        # Retry every 10s
@@ -130,6 +163,12 @@ outputs:
       password: "changeme"
       batch_size: 50
       timeout: 30
+      # Optional TLS configuration for HTTPS
+      # tls:
+      #   enabled: true
+      #   ca_cert: "/path/to/ca-cert.pem"
+      #   client_cert: "/path/to/client-cert.pem"
+      #   client_key: "/path/to/client-key.pem"
       # Output buffering (optional - enabled by default)
       buffer:
         enabled: true
@@ -381,6 +420,71 @@ persistence:
 3. All plugins gracefully restart with new config
 4. No logs dropped during reload
 
+### 6. TLS/MTLS Support (Secure Communication)
+
+**End-to-end encryption with optional mutual TLS authentication.**
+
+**HTTPS Input Configuration:**
+```yaml
+inputs:
+  - type: http
+    name: "secure-api"
+    config:
+      port: "8443"
+      # TLS Configuration for HTTPS server
+      tls:
+        enabled: true
+        # Server certificate validation (for client auth/MTLS)
+        ca_cert: "/path/to/ca-cert.pem"
+        insecure_skip_verify: false
+        min_version: "1.2"
+        max_version: "1.3"
+      # Server certificates (required for HTTPS)
+      cert_file: "/path/to/server-cert.pem"
+      key_file: "/path/to/server-key.pem"
+```
+
+**TLS Output Configuration (Elasticsearch, Kafka, Slack):**
+```yaml
+outputs:
+  - type: elasticsearch
+    name: "secure-es"
+    config:
+      addresses: ["https://elasticsearch:9200"]
+      # TLS Configuration
+      tls:
+        enabled: true
+        # Server certificate validation
+        insecure_skip_verify: false
+        ca_cert: "/path/to/ca-cert.pem"
+        # Client certificate for MTLS (optional)
+        client_cert: "/path/to/client-cert.pem"
+        client_key: "/path/to/client-key.pem"
+        min_version: "1.2"
+```
+
+**Key Features:**
+- 🔒 **HTTPS Support**: Secure HTTP input with server certificates
+- 🔐 **Mutual TLS**: Optional client certificate authentication
+- 🛡️ **Certificate Validation**: Configurable CA and certificate verification
+- 🔄 **Plugin Integration**: TLS support across all network plugins
+- 🧪 **Test Certificates**: Included scripts to generate test certificates
+
+**📖 TLS Documentation:** [TEST_TLS.md](TEST_TLS.md)
+
+**Quick TLS Setup:**
+```bash
+# Generate test certificates
+cd examples/scripts/certs
+./generate-certs.sh  # Linux/Mac
+# OR
+.\generate-certs.ps1  # Windows
+
+# Start with TLS configuration
+cd examples
+docker-compose -f docker-compose-tls.yml up -d
+```
+
 ## 🔌 Plugin Reference
 
 ### Input Plugins
@@ -412,30 +516,41 @@ Monitor Docker container logs with filtering:
 **Priority:** `container_ids` > `container_filter` > `labels` > all containers
 
 #### HTTP
-Accept logs via HTTP POST:
+Accept logs via HTTP POST with optional TLS:
 
 ```yaml
 - type: http
   name: "api-logs"
   config:
     port: "8080"
+    # Optional TLS configuration for HTTPS
+    # tls:
+    #   enabled: true
+    #   ca_cert: "/path/to/ca-cert.pem"        # For client certificate validation (MTLS)
+    #   insecure_skip_verify: false
+    #   min_version: "1.2"
+    #   max_version: "1.3"
+    # Server certificates (required for HTTPS)
+    # cert_file: "/path/to/server-cert.pem"
+    # key_file: "/path/to/server-key.pem"
 ```
 
 **Usage:**
 ```bash
-# Plain text
+# Plain HTTP
 curl -X POST http://localhost:8080/logs \
   -H "Content-Type: text/plain" \
   -d "Error message"
 
-# JSON
-curl -X POST http://localhost:8080/logs \
+# HTTPS with client certificate (MTLS)
+curl --cacert ca-cert.pem --cert client-cert.pem --key client-key.pem \
+  -X POST https://localhost:8443/logs \
   -H "Content-Type: application/json" \
   -d '{"level":"error","message":"Failed"}'
 ```
 
 #### Kafka
-Consume from Kafka topics:
+Consume from Kafka topics with optional TLS:
 
 ```yaml
 - type: kafka
@@ -450,9 +565,14 @@ Consume from Kafka topics:
     # Optional SASL authentication
     # username: "user"
     # password: "pass"
-    # Optional TLS
-    # tls: true
-    # insecure_skip_verify: false
+    # Optional TLS configuration
+    # tls:
+    #   enabled: true
+    #   ca_cert: "/path/to/ca-cert.pem"
+    #   client_cert: "/path/to/client-cert.pem"  # For MTLS
+    #   client_key: "/path/to/client-key.pem"
+    #   insecure_skip_verify: false
+    #   min_version: "1.2"
 ```
 
 **Metadata added:**
@@ -476,7 +596,7 @@ Tail log files:
 ### Output Plugins
 
 #### Elasticsearch
-Send to Elasticsearch with bulk indexing:
+Send to Elasticsearch with bulk indexing and optional TLS:
 
 ```yaml
 - type: elasticsearch
@@ -488,6 +608,14 @@ Send to Elasticsearch with bulk indexing:
     password: "changeme"          # Optional
     batch_size: 50
     timeout: 30
+    # Optional TLS configuration
+    # tls:
+    #   enabled: true
+    #   ca_cert: "/path/to/ca-cert.pem"
+    #   client_cert: "/path/to/client-cert.pem"  # For MTLS
+    #   client_key: "/path/to/client-key.pem"
+    #   insecure_skip_verify: false
+    #   min_version: "1.2"
 ```
 
 **Index templates:**
@@ -823,6 +951,7 @@ docker run -v $(pwd)/config.yaml:/config.yaml \
 
 ## 📚 Documentation
 
+- **[TEST_TLS.md](TEST_TLS.md)** - TLS/MTLS configuration and security guide
 - **[OUTPUT_BUFFERING.md](OUTPUT_BUFFERING.md)** - Output buffering, retry, and DLQ guide
 - **[TESTING_REPORT.md](TESTING_REPORT.md)** - Test coverage and race condition analysis
 - **[PROJECT_INFO.md](PROJECT_INFO.md)** - Project structure and development guide
@@ -845,6 +974,10 @@ logAnalyzer/
 │   ├── plugin_wrappers.go      # Resilient wrappers
 │   ├── config_watcher.go       # Hot reload
 │   └── *_test.go               # Tests (71.3% coverage)
+├── pkg/
+│   └── tlsconfig/              # TLS configuration package
+│       ├── config.go           # TLS config structures
+│       └── config_test.go      # TLS config tests
 ├── plugins/
 │   ├── input/                  # Input plugins
 │   │   ├── docker/
@@ -864,7 +997,11 @@ logAnalyzer/
 │       └── rate_limit/
 ├── examples/                   # Complete Docker setup
 │   ├── docker-compose.yml
+│   ├── docker-compose-tls.yml  # TLS-enabled setup
 │   ├── loganalyzer.yaml
+│   ├── loganalyzer-tls.yaml    # TLS configuration
+│   ├── scripts/
+│   │   └── certs/              # Test certificates
 │   ├── grafana/                # Pre-configured dashboards
 │   └── README.md
 ├── build.sh / build.ps1        # Build scripts
