@@ -1,32 +1,54 @@
 package elasticsearch
 
 import (
+	"os"
 	"testing"
 	"time"
 
 	"github.com/mbiondo/logAnalyzer/core"
 )
 
+func TestMain(m *testing.M) {
+	// Set environment variable to skip connection tests in unit tests
+	os.Setenv("UNIT_TEST", "true")
+	code := m.Run()
+	os.Unsetenv("UNIT_TEST")
+	os.Exit(code)
+}
+
 func TestNewElasticsearchOutput(t *testing.T) {
-	// Test with missing index
+	// Test with missing index - should fail without attempting connections
 	_, err := NewElasticsearchOutput(Config{
-		Addresses: []string{"http://localhost:9200"},
+		// Empty addresses to avoid connection attempts
 	})
 	if err == nil {
 		t.Error("Expected error for missing index")
 	}
 
-	// Test default values
+	// Test default values - use a mock/test configuration that doesn't attempt real connections
 	config := Config{
 		Index: "logs",
+		// Don't set addresses to avoid connection attempts in unit tests
 	}
 
-	// Note: This will fail if Elasticsearch is not running
-	// In CI/CD, you'd want to skip this test or use a mock
-	_, err = NewElasticsearchOutput(config)
+	// This should succeed without attempting connections
+	output, err := NewElasticsearchOutput(config)
 	if err != nil {
-		t.Logf("Skipping connection test (Elasticsearch not available): %v", err)
-		return
+		t.Errorf("Expected success with valid config, got error: %v", err)
+	}
+	if output == nil {
+		t.Error("Expected non-nil output")
+	}
+
+	// Verify default values were set
+	if len(output.config.Addresses) == 0 {
+		t.Error("Expected default addresses to be set")
+	}
+	if output.config.Timeout != 30 {
+		t.Errorf("Expected default timeout 30, got %d", output.config.Timeout)
+	}
+	if output.config.BatchSize != 100 {
+		t.Errorf("Expected default batch size 100, got %d", output.config.BatchSize)
 	}
 }
 
@@ -77,12 +99,12 @@ func TestResolveIndexNameMultipleFormats(t *testing.T) {
 
 func TestElasticsearchOutputFromConfig(t *testing.T) {
 	config := map[string]any{
-		"addresses":  []any{"http://localhost:9200"},
 		"index":      "test-logs",
 		"username":   "elastic",
 		"password":   "password",
 		"timeout":    60,
 		"batch_size": 50,
+		// Omit addresses to avoid connection attempts in unit tests
 	}
 
 	_, err := NewElasticsearchOutputFromConfig(config)
@@ -148,15 +170,15 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "Valid config",
 			config: Config{
-				Addresses: []string{"http://localhost:9200"},
-				Index:     "logs",
+				// Omit addresses to avoid connection attempts in unit tests
+				Index: "logs",
 			},
 			expectErr: false,
 		},
 		{
 			name: "Missing index",
 			config: Config{
-				Addresses: []string{"http://localhost:9200"},
+				// Empty addresses to avoid connection attempts
 			},
 			expectErr: true,
 		},
