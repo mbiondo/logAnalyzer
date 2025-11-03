@@ -593,7 +593,7 @@ demo-app:
 - Enable TLS/SSL
 - Configure proper network isolation
 
-## � TLS/MTLS Configuration
+## 🔒 TLS/MTLS Configuration
 
 LogAnalyzer supports secure communication using TLS and Mutual TLS (MTLS) for all inputs and outputs. This section explains how to set up and test TLS configurations.
 
@@ -612,10 +612,12 @@ cd examples
 ```
 
 This creates:
-- `certs/ca.pem` - Certificate Authority
-- `certs/server.pem` / `server.key` - Server certificate for HTTPS
-- `certs/client.pem` / `client.key` - Client certificate for MTLS
-- `certs/server-cert.pem` - Combined server cert + key
+- `certs/ca-cert.pem` - Certificate Authority certificate
+- `certs/ca-key.pem` - Certificate Authority private key
+- `certs/server-cert.pem` - Server certificate for HTTPS
+- `certs/server-key.pem` - Server private key
+- `certs/client-cert.pem` - Client certificate for MTLS
+- `certs/client-key.pem` - Client private key
 
 ### Test Certificates
 

@@ -23,7 +23,7 @@ output_buffer:
   dlq_enabled: true               # Enable Dead Letter Queue
   dlq_path: "./data/dlq"          # Path for DLQ files
 
-# API c30onfiguration (optional)
+# API configuration (optional)
 api:
   enabled: true                    # Enable/disable metrics API server
   port: 9092                       # Port for the API server
