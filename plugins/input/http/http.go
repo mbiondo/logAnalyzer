@@ -25,6 +25,49 @@ type Config struct {
 	TLS      tlsconfig.Config `yaml:"tls,omitempty"`       // TLS configuration for HTTPS
 	CertFile string           `yaml:"cert_file,omitempty"` // Server certificate file (for HTTPS)
 	KeyFile  string           `yaml:"key_file,omitempty"`  // Server key file (for HTTPS)
+
+	// Authentication configuration
+	Auth AuthConfig `yaml:"auth,omitempty"`
+}
+
+// AuthConfig represents authentication configuration for HTTP input
+type AuthConfig struct {
+	// Basic authentication
+	Username string `yaml:"username,omitempty"`
+	Password string `yaml:"password,omitempty"`
+
+	// Bearer token authentication
+	BearerToken string `yaml:"bearer_token,omitempty"`
+
+	// API key authentication
+	APIKey       string `yaml:"api_key,omitempty"`
+	APIKeyHeader string `yaml:"api_key_header,omitempty"` // Default: "X-API-Key"
+
+	// Client certificate authentication (mTLS)
+	ClientCertRequired bool `yaml:"client_cert_required,omitempty"` // Require client certificates
+}
+
+// Validate validates the authentication configuration
+func (a *AuthConfig) Validate() error {
+	authMethods := 0
+	if a.Username != "" || a.Password != "" {
+		authMethods++
+		if a.Username == "" || a.Password == "" {
+			return fmt.Errorf("both username and password must be provided for basic authentication")
+		}
+	}
+	if a.BearerToken != "" {
+		authMethods++
+	}
+	if a.APIKey != "" {
+		authMethods++
+	}
+
+	if authMethods > 1 {
+		return fmt.Errorf("only one authentication method can be configured at a time")
+	}
+
+	return nil
 }
 
 // NewHTTPInputFromConfig creates an HTTP input from configuration map
@@ -37,6 +80,16 @@ func NewHTTPInputFromConfig(config map[string]any) (any, error) {
 	// Set defaults
 	if cfg.Port == "" {
 		cfg.Port = "8080"
+	}
+
+	// Set default API key header if API key is configured
+	if cfg.Auth.APIKey != "" && cfg.Auth.APIKeyHeader == "" {
+		cfg.Auth.APIKeyHeader = "X-API-Key"
+	}
+
+	// Validate authentication configuration
+	if err := cfg.Auth.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid auth config: %w", err)
 	}
 
 	// Validate TLS config
@@ -103,6 +156,12 @@ func (h *HTTPInput) Start() error {
 		if err != nil {
 			return err
 		}
+
+		// Configure client certificate verification if required
+		if h.config.Auth.ClientCertRequired {
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		}
+
 		h.tlsConfig = tlsConfig
 		h.server.TLSConfig = tlsConfig
 	}
@@ -172,6 +231,12 @@ func (h *HTTPInput) SetName(name string) {
 
 // handleLogs handles POST requests with log data
 func (h *HTTPInput) handleLogs(w http.ResponseWriter, r *http.Request) {
+	// Check authentication
+	if err := h.authenticateRequest(r); err != nil {
+		http.Error(w, fmt.Sprintf("Authentication failed: %v", err), http.StatusUnauthorized)
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -318,4 +383,60 @@ func (h *HTTPInput) parseLogLine(line string) *core.Log {
 	logEntry := core.NewLogWithMetadata(level, message, metadata)
 	logEntry.Source = h.name // Set the source to the input name
 	return logEntry
+}
+
+// authenticateRequest authenticates the incoming HTTP request
+func (h *HTTPInput) authenticateRequest(r *http.Request) error {
+	// If no authentication is configured, allow all requests
+	if h.config.Auth.Username == "" && h.config.Auth.Password == "" &&
+		h.config.Auth.BearerToken == "" && h.config.Auth.APIKey == "" {
+		return nil
+	}
+
+	// Check Basic Authentication
+	if h.config.Auth.Username != "" && h.config.Auth.Password != "" {
+		username, password, ok := r.BasicAuth()
+		if !ok {
+			return fmt.Errorf("basic authentication required")
+		}
+		if username != h.config.Auth.Username || password != h.config.Auth.Password {
+			return fmt.Errorf("invalid credentials")
+		}
+		return nil
+	}
+
+	// Check Bearer Token Authentication
+	if h.config.Auth.BearerToken != "" {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			return fmt.Errorf("bearer token required")
+		}
+		const bearerPrefix = "Bearer "
+		if !strings.HasPrefix(authHeader, bearerPrefix) {
+			return fmt.Errorf("invalid authorization header format")
+		}
+		token := strings.TrimPrefix(authHeader, bearerPrefix)
+		if token != h.config.Auth.BearerToken {
+			return fmt.Errorf("invalid bearer token")
+		}
+		return nil
+	}
+
+	// Check API Key Authentication
+	if h.config.Auth.APIKey != "" {
+		headerName := h.config.Auth.APIKeyHeader
+		if headerName == "" {
+			headerName = "X-API-Key"
+		}
+		apiKey := r.Header.Get(headerName)
+		if apiKey == "" {
+			return fmt.Errorf("API key required in header %s", headerName)
+		}
+		if apiKey != h.config.Auth.APIKey {
+			return fmt.Errorf("invalid API key")
+		}
+		return nil
+	}
+
+	return nil
 }

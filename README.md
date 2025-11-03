@@ -516,13 +516,27 @@ Monitor Docker container logs with filtering:
 **Priority:** `container_ids` > `container_filter` > `labels` > all containers
 
 #### HTTP
-Accept logs via HTTP POST with optional TLS:
+Accept logs via HTTP POST with optional TLS and authentication:
 
 ```yaml
 - type: http
   name: "api-logs"
   config:
     port: "8080"
+    # Optional authentication configuration
+    # auth:
+    #   # Basic authentication (username/password)
+    #   basic:
+    #     username: "admin"
+    #     password: "secret123"
+    #   # Bearer token authentication
+    #   bearer_token: "your-jwt-token-here"
+    #   # API key authentication (header-based)
+    #   api_key:
+    #     header: "X-API-Key"        # Default: "X-API-Key"
+    #     value: "your-api-key-here"
+    #   # Mutual TLS authentication (client certificates)
+    #   client_cert_required: true   # Require client certificates
     # Optional TLS configuration for HTTPS
     # tls:
     #   enabled: true
@@ -535,19 +549,59 @@ Accept logs via HTTP POST with optional TLS:
     # key_file: "/path/to/server-key.pem"
 ```
 
-**Usage:**
+**Authentication Methods:**
+- **Basic Auth**: HTTP Basic authentication with username/password
+- **Bearer Token**: JWT or other bearer token authentication
+- **API Key**: Custom header-based API key authentication
+- **Mutual TLS**: Client certificate authentication (requires TLS)
+- **Multiple Methods**: Can combine multiple auth methods (all must pass)
+
+**Usage Examples:**
 ```bash
-# Plain HTTP
+# Plain HTTP (no auth)
 curl -X POST http://localhost:8080/logs \
   -H "Content-Type: text/plain" \
   -d "Error message"
+
+# Basic authentication
+curl -X POST http://localhost:8080/logs \
+  -u "admin:secret123" \
+  -H "Content-Type: text/plain" \
+  -d "Authenticated log"
+
+# Bearer token authentication
+curl -X POST http://localhost:8080/logs \
+  -H "Authorization: Bearer your-jwt-token-here" \
+  -H "Content-Type: application/json" \
+  -d '{"level":"error","message":"Token authenticated"}'
+
+# API key authentication
+curl -X POST http://localhost:8080/logs \
+  -H "X-API-Key: your-api-key-here" \
+  -H "Content-Type: text/plain" \
+  -d "API key authenticated log"
 
 # HTTPS with client certificate (MTLS)
 curl --cacert ca-cert.pem --cert client-cert.pem --key client-key.pem \
   -X POST https://localhost:8443/logs \
   -H "Content-Type: application/json" \
-  -d '{"level":"error","message":"Failed"}'
+  -d '{"level":"error","message":"MTLS authenticated"}'
+
+# Multiple authentication methods
+curl -X POST https://localhost:8443/logs \
+  -u "admin:secret123" \
+  -H "Authorization: Bearer your-jwt-token-here" \
+  -H "X-API-Key: your-api-key-here" \
+  --cert client-cert.pem --key client-key.pem \
+  -H "Content-Type: application/json" \
+  -d '{"level":"error","message":"All auth methods"}'
 ```
+
+**Authentication Validation:**
+- When no authentication is configured, all requests are accepted
+- When authentication is configured, all enabled methods must pass
+- Failed authentication returns HTTP 401 Unauthorized
+- Authentication errors are logged with request details
 
 #### Kafka
 Consume from Kafka topics with optional TLS:
