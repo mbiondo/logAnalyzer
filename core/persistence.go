@@ -69,7 +69,7 @@ func NewPersistence(config PersistenceConfig) (*Persistence, error) {
 	}
 
 	// Create WAL directory if it doesn't exist
-	if err := os.MkdirAll(config.Dir, 0755); err != nil {
+	if err := os.MkdirAll(config.Dir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create WAL directory: %w", err)
 	}
 
@@ -221,7 +221,7 @@ func (p *Persistence) rotateFile() error {
 	p.sequenceMu.Unlock()
 
 	filename := filepath.Join(p.config.Dir, fmt.Sprintf("wal-%s-%d.log", time.Now().Format("20060102-150405"), seq))
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600) // #nosec G304 - filename constructed from controlled inputs
 	if err != nil {
 		return fmt.Errorf("failed to create WAL file: %w", err)
 	}
@@ -281,7 +281,12 @@ func (p *Persistence) recoverAsync() {
 
 // recoverFile recovers logs from a single WAL file
 func (p *Persistence) recoverFile(filename string) (int, error) {
-	file, err := os.Open(filename)
+	// Validate that the file is within our configured directory
+	if err := validateFileInDirectory(filename, p.config.Dir); err != nil {
+		return 0, fmt.Errorf("invalid WAL file path: %w", err)
+	}
+
+	file, err := os.Open(filename) // #nosec G304 - path validated by validateFileInDirectory above
 	if err != nil {
 		return 0, fmt.Errorf("failed to open WAL file: %w", err)
 	}

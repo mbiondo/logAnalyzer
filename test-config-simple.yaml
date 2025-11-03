@@ -1,0 +1,17 @@
+# Simple test configuration without authentication
+inputs:
+  - type: file
+    name: test-input
+    config:
+      path: "test.log"
+      encoding: utf-8
+
+outputs:
+  - type: console
+    name: test-output
+    config:
+      format: json
+
+api:
+  enabled: true
+  port: 9090

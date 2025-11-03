@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -106,27 +107,30 @@ func NewElasticsearchOutput(config Config) (*ElasticsearchOutput, error) {
 	}
 
 	// Test connection (non-blocking - just log if fails)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.Timeout)*time.Second)
-	defer cancel()
-	res, err := client.Info(client.Info.WithContext(ctx))
+	// Skip connection test in unit tests to avoid external dependencies
+	if os.Getenv("UNIT_TEST") != "true" {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.Timeout)*time.Second)
+		defer cancel()
+		res, err := client.Info(client.Info.WithContext(ctx))
 
-	if err != nil {
-		log.Printf("[ELASTICSEARCH] Initial connection test failed: %v (will retry in background)", err)
-		// Don't fail initialization - resilience layer will handle reconnection
-	} else {
-		defer func() {
-			_ = res.Body.Close()
-		}()
-
-		if res.IsError() {
-			log.Printf("[ELASTICSEARCH] Initial connection returned error: %s (will retry in background)", res.String())
+		if err != nil {
+			log.Printf("[ELASTICSEARCH] Initial connection test failed: %v (will retry in background)", err)
 			// Don't fail initialization - resilience layer will handle reconnection
 		} else {
-			log.Printf("[ELASTICSEARCH] Successfully connected to Elasticsearch")
+			defer func() {
+				_ = res.Body.Close()
+			}()
+
+			if res.IsError() {
+				log.Printf("[ELASTICSEARCH] Initial connection returned error: %s (will retry in background)", res.String())
+				// Don't fail initialization - resilience layer will handle reconnection
+			} else {
+				log.Printf("[ELASTICSEARCH] Successfully connected to Elasticsearch")
+			}
 		}
 	}
 
-	ctx, cancel = context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
 	output := &ElasticsearchOutput{
 		config: config,

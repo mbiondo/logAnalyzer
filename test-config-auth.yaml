@@ -1,0 +1,31 @@
+api:
+  enabled: true
+  port: 9090
+  auth:
+    enabled: true
+    require_key: true
+    health_bypass: true
+    api_keys:
+      - id: "monitoring-key"
+        secret: "monitoring-key-123"
+        permissions: ["health", "metrics"]
+        name: "Monitoring Key"
+      - id: "admin-key"
+        secret: "admin-key-456"
+        permissions: ["health", "metrics", "status", "admin"]
+        name: "Admin Key"
+
+input:
+  - type: file
+    path: "test-log.txt"
+    format: json
+
+output:
+  - type: console
+
+filters:
+  - type: json
+
+buffer:
+  enabled: true
+  size: 1000

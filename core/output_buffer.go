@@ -87,14 +87,14 @@ func NewOutputBuffer(outputName string, output OutputPlugin, config OutputBuffer
 
 	// Create buffer directory
 	bufferDir := filepath.Join(config.Dir, outputName)
-	if err := os.MkdirAll(bufferDir, 0755); err != nil {
+	if err := os.MkdirAll(bufferDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create buffer directory: %w", err)
 	}
 
 	// Create DLQ directory if enabled
 	if config.DLQEnabled {
 		dlqDir := config.DLQPath
-		if err := os.MkdirAll(dlqDir, 0755); err != nil {
+		if err := os.MkdirAll(dlqDir, 0750); err != nil {
 			return nil, fmt.Errorf("failed to create DLQ directory: %w", err)
 		}
 	}
@@ -112,7 +112,7 @@ func NewOutputBuffer(outputName string, output OutputPlugin, config OutputBuffer
 	// Open DLQ file if enabled
 	if config.DLQEnabled {
 		dlqPath := filepath.Join(config.DLQPath, fmt.Sprintf("%s-dlq.jsonl", outputName))
-		file, err := os.OpenFile(dlqPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		file, err := os.OpenFile(dlqPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600) // #nosec G304 - path constructed from controlled inputs
 		if err != nil {
 			return nil, fmt.Errorf("failed to open DLQ file: %w", err)
 		}
@@ -316,7 +316,19 @@ func (ob *OutputBuffer) calculateBackoff(attempts int) time.Duration {
 	}
 
 	// Exponential backoff: RetryInterval * 2^(attempts-1)
-	backoff := ob.config.RetryInterval * time.Duration(1<<uint(attempts-1))
+	// Ensure attempts is at least 1
+	if attempts < 1 {
+		attempts = 1
+	}
+	
+	// Limit shift to 30 bits to prevent overflow (2^30 = 1,073,741,824)
+	shift := attempts - 1
+	if shift > 30 {
+		shift = 30
+	}
+	multiplier := int64(1 << uint(shift)) // #nosec G115 - shift is capped at 30 bits, safe for int64
+	
+	backoff := ob.config.RetryInterval * time.Duration(multiplier)
 
 	if backoff > ob.config.MaxRetryDelay {
 		backoff = ob.config.MaxRetryDelay
@@ -365,7 +377,7 @@ func (ob *OutputBuffer) persistLog(bufferedLog *BufferedLog) error {
 		return fmt.Errorf("failed to marshal log: %w", err)
 	}
 
-	if err := os.WriteFile(filename, append(data, '\n'), 0644); err != nil {
+	if err := os.WriteFile(filename, append(data, '\n'), 0600); err != nil {
 		return fmt.Errorf("failed to write buffer file: %w", err)
 	}
 
@@ -382,7 +394,7 @@ func (ob *OutputBuffer) persistRetryQueue() {
 	}
 
 	filename := filepath.Join(ob.config.Dir, ob.outputName, "retry-queue.jsonl")
-	file, err := os.Create(filename)
+	file, err := os.Create(filename) // #nosec G304 - path constructed from controlled inputs
 	if err != nil {
 		log.Printf("[BUFFER:%s] Error creating retry queue file: %v", ob.outputName, err)
 		return
@@ -420,7 +432,13 @@ func (ob *OutputBuffer) loadPersistedLogs() error {
 
 	loadedCount := 0
 	for _, filename := range files {
-		data, err := os.ReadFile(filename)
+		// Validate that the file is within our configured directory
+		if err := validateFileInDirectory(filename, bufferDir); err != nil {
+			log.Printf("[BUFFER:%s] Skipping invalid buffer file path %s: %v", ob.outputName, filename, err)
+			continue
+		}
+
+		data, err := os.ReadFile(filename) // #nosec G304 - path validated by validateFileInDirectory above
 		if err != nil {
 			log.Printf("[BUFFER:%s] Error reading buffer file %s: %v", ob.outputName, filename, err)
 			continue

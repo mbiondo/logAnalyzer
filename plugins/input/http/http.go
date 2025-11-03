@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/mbiondo/logAnalyzer/core"
 	"github.com/mbiondo/logAnalyzer/pkg/tlsconfig"
@@ -147,8 +148,9 @@ func (h *HTTPInput) Start() error {
 	mux.HandleFunc("/health", h.handleHealth)
 
 	h.server = &http.Server{
-		Addr:    ":" + h.port,
-		Handler: mux,
+		Addr:              ":" + h.port,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	// Configure TLS if enabled

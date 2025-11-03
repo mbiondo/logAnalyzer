@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/mbiondo/logAnalyzer/core"
 
@@ -92,8 +93,9 @@ func (p *PrometheusOutput) startMetricsServer() {
 	mux.Handle("/metrics", promhttp.Handler())
 
 	p.httpServer = &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	log.Printf("Starting Prometheus metrics server on %s", addr)
