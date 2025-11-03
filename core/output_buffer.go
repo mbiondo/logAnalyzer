@@ -326,7 +326,7 @@ func (ob *OutputBuffer) calculateBackoff(attempts int) time.Duration {
 	if shift > 30 {
 		shift = 30
 	}
-	multiplier := int64(1 << uint(shift))
+	multiplier := int64(1 << uint(shift)) // #nosec G115 - shift is capped at 30 bits, safe for int64
 	
 	backoff := ob.config.RetryInterval * time.Duration(multiplier)
 
