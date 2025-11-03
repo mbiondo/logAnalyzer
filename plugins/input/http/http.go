@@ -1,6 +1,7 @@
 package httpinput
 
 import (
+	"crypto/subtle"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -399,7 +400,10 @@ func (h *HTTPInput) authenticateRequest(r *http.Request) error {
 		if !ok {
 			return fmt.Errorf("basic authentication required")
 		}
-		if username != h.config.Auth.Username || password != h.config.Auth.Password {
+		// Use constant-time comparison to prevent timing attacks
+		usernameMatch := subtle.ConstantTimeCompare([]byte(username), []byte(h.config.Auth.Username))
+		passwordMatch := subtle.ConstantTimeCompare([]byte(password), []byte(h.config.Auth.Password))
+		if usernameMatch != 1 || passwordMatch != 1 {
 			return fmt.Errorf("invalid credentials")
 		}
 		return nil
@@ -416,7 +420,8 @@ func (h *HTTPInput) authenticateRequest(r *http.Request) error {
 			return fmt.Errorf("invalid authorization header format")
 		}
 		token := strings.TrimPrefix(authHeader, bearerPrefix)
-		if token != h.config.Auth.BearerToken {
+		// Use constant-time comparison to prevent timing attacks
+		if subtle.ConstantTimeCompare([]byte(token), []byte(h.config.Auth.BearerToken)) != 1 {
 			return fmt.Errorf("invalid bearer token")
 		}
 		return nil
@@ -432,7 +437,8 @@ func (h *HTTPInput) authenticateRequest(r *http.Request) error {
 		if apiKey == "" {
 			return fmt.Errorf("API key required in header %s", headerName)
 		}
-		if apiKey != h.config.Auth.APIKey {
+		// Use constant-time comparison to prevent timing attacks
+		if subtle.ConstantTimeCompare([]byte(apiKey), []byte(h.config.Auth.APIKey)) != 1 {
 			return fmt.Errorf("invalid API key")
 		}
 		return nil
