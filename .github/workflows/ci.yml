@@ -45,6 +45,8 @@ jobs:
 
     - name: Run tests
       shell: bash
+      env:
+        UNIT_TEST: true
       run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
     - name: Upload coverage to Codecov
