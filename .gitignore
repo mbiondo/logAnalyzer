@@ -49,3 +49,6 @@ Thumbs.db
 
 # Dependencies
 vendor/
+
+# Planning documentation
+/planning/

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/mbiondo/logAnalyzer/pkg/auth"
 )
 
 // OutputPipeline represents an output with its own filters and source restrictions
@@ -35,8 +37,10 @@ type Engine struct {
 	nextInputID  int        // Monotonic counter for generating unique input names
 
 	// API server
-	apiServer *http.Server
-	apiConfig APIConfig
+	apiServer      *http.Server
+	apiConfig      APIConfig
+	apiKeyManager  *auth.APIKeyManager
+	authMiddleware *auth.Middleware
 
 	// Metrics
 	totalLogsProcessed int64
@@ -97,6 +101,26 @@ func (e *Engine) EnableAPI(config APIConfig) error {
 		return fmt.Errorf("API port cannot be 0")
 	}
 	e.apiConfig = config
+
+	// Initialize API key manager if authentication is enabled
+	if config.Auth.Enabled {
+		e.apiKeyManager = auth.NewAPIKeyManager()
+
+		// Load API keys from configuration
+		if err := e.apiKeyManager.LoadKeys(config.Auth.APIKeys); err != nil {
+			return fmt.Errorf("failed to load API keys: %w", err)
+		}
+
+		// Initialize authentication middleware
+		e.authMiddleware = auth.NewMiddleware(
+			e.apiKeyManager,
+			config.Auth.RequireKey,
+			config.Auth.HealthBypass,
+		)
+
+		log.Printf("API authentication enabled with %d API keys", len(config.Auth.APIKeys))
+	}
+
 	return nil
 }
 
@@ -189,9 +213,17 @@ func (e *Engine) Start() {
 // startAPIServer starts the metrics API server
 func (e *Engine) startAPIServer() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", e.handleHealth)
-	mux.HandleFunc("/metrics", e.handleMetrics)
-	mux.HandleFunc("/status", e.handleStatus)
+
+	// Apply authentication middleware if enabled
+	if e.authMiddleware != nil {
+		mux.HandleFunc("/health", e.authMiddleware.WrapHandlerFunc(e.handleHealth))
+		mux.HandleFunc("/metrics", e.authMiddleware.WrapHandlerFunc(e.handleMetrics))
+		mux.HandleFunc("/status", e.authMiddleware.WrapHandlerFunc(e.handleStatus))
+	} else {
+		mux.HandleFunc("/health", e.handleHealth)
+		mux.HandleFunc("/metrics", e.handleMetrics)
+		mux.HandleFunc("/status", e.handleStatus)
+	}
 
 	e.apiServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", e.apiConfig.Port),
@@ -199,6 +231,10 @@ func (e *Engine) startAPIServer() {
 	}
 
 	log.Printf("Starting API server on port %d", e.apiConfig.Port)
+	if e.authMiddleware != nil {
+		log.Printf("API authentication is enabled")
+	}
+
 	go func() {
 		if err := e.apiServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("API server error: %v", err)

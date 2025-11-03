@@ -1,0 +1,61 @@
+# Example configuration with API authentication enabled
+inputs:
+  - type: file
+    name: app-logs
+    config:
+      path: "/var/log/app.log"
+      encoding: utf-8
+
+outputs:
+  - type: console
+    name: stdout
+    config:
+      format: json
+
+# API server with authentication
+api:
+  enabled: true
+  port: 9090
+  auth:
+    enabled: true
+    require_key: true
+    health_bypass: true  # Allow /health endpoint without authentication
+    api_keys:
+      - id: "monitoring-key"
+        name: "Monitoring System"
+        description: "API key for monitoring and health checks"
+        secret: "${API_KEY_MONITORING}"  # Use environment variable
+        permissions:
+          - "health"
+          - "metrics"
+
+      - id: "admin-key"
+        name: "Admin System"
+        description: "Full access API key for administration"
+        secret: "${API_KEY_ADMIN}"
+        permissions:
+          - "health"
+          - "metrics"
+          - "status"
+
+      - id: "temp-key"
+        name: "Temporary Key"
+        description: "Temporary key that expires"
+        secret: "temp-secret-123"
+        permissions:
+          - "health"
+          - "metrics"
+        expires_at: "2025-12-31T23:59:59Z"  # RFC3339 format
+
+# Optional: Persistence for WAL
+persistence:
+  enabled: true
+  path: "/tmp/loganalyzer-wal"
+  max_size_mb: 100
+
+# Optional: Output buffering
+output_buffer:
+  enabled: true
+  max_size: 1000
+  flush_interval: 10s
+  retry_attempts: 3

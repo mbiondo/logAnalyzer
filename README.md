@@ -308,25 +308,39 @@ LogAnalyzer uses a pipeline architecture where each output is independent:
 
 ### 1. Metrics API (Service Monitoring)
 
-**REST API exposing real-time service metrics, health status, and pipeline information.**
+**REST API exposing real-time service metrics, health status, and pipeline information with optional authentication.**
 
 **Configuration** (optional - enabled by default):
 ```yaml
 api:
   enabled: true    # Enable/disable API server
   port: 9092       # API server port
+  auth:
+    enabled: true        # Enable API authentication
+    require_key: true    # Require API key for all endpoints
+    health_bypass: true  # Allow /health without authentication
+    api_keys:
+      - id: "monitoring"
+        name: "Monitoring System"
+        secret: "${API_KEY_MONITORING}"
+        permissions: ["health", "metrics"]
+      - id: "admin"
+        name: "Admin System"
+        secret: "${API_KEY_ADMIN}"
+        permissions: ["health", "metrics", "status"]
 ```
 
 **Available endpoints:**
-- `/health` - Basic health check
+- `/health` - Basic health check (may not require auth)
 - `/metrics` - Buffer statistics and metrics
 - `/status` - Complete service status
 
-**Use cases:**
-- Health monitoring and alerting
-- Performance dashboards
-- Troubleshooting pipeline issues
-- Integration with monitoring systems
+**Authentication:**
+- API keys passed via `X-API-Key` header
+- Configurable permissions per endpoint
+- Optional health endpoint bypass
+
+**📖 Full API security guide:** [API_SECURITY.md](API_SECURITY.md)
 
 ### 2. Plugin Resilience (High Availability)
 

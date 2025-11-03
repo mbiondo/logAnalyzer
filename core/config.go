@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/mbiondo/logAnalyzer/pkg/auth"
 	"gopkg.in/yaml.v3"
 )
 
@@ -14,13 +15,33 @@ import (
 type APIConfig struct {
 	Enabled bool `yaml:"enabled"` // Enable/disable API server
 	Port    int  `yaml:"port"`    // Port for the API server
+
+	// Authentication configuration
+	Auth APIAuthConfig `yaml:"auth,omitempty"`
 }
+
+// APIAuthConfig defines API authentication configuration
+type APIAuthConfig struct {
+	Enabled      bool                `yaml:"enabled"`       // Enable/disable API authentication
+	RequireKey   bool                `yaml:"require_key"`   // Require API key for all endpoints
+	HealthBypass bool                `yaml:"health_bypass"` // Allow health endpoint without auth
+	APIKeys      []auth.APIKeyConfig `yaml:"api_keys"`      // List of API keys
+}
+
+// APIKeyConfig defines an API key configuration
+type APIKeyConfig = auth.APIKeyConfig
 
 // DefaultAPIConfig returns default API configuration
 func DefaultAPIConfig() APIConfig {
 	return APIConfig{
 		Enabled: false,
 		Port:    9090,
+		Auth: APIAuthConfig{
+			Enabled:      false,
+			RequireKey:   false,
+			HealthBypass: true,
+			APIKeys:      []APIKeyConfig{},
+		},
 	}
 }
 
