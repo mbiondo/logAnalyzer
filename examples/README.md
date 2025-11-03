@@ -206,19 +206,11 @@ curl -X POST http://localhost:8080/logs \
   -H "X-API-Key: your-api-key-here" \
   -H "Content-Type: application/json" \
   -d '{"level":"info","message":"API key authenticated log"}'
-
-# Send with multiple authentication methods (all must pass)
-curl -X POST http://localhost:8080/logs \
-  -u "admin:secret123" \
-  -H "Authorization: Bearer your-jwt-token-here" \
-  -H "X-API-Key: your-api-key-here" \
-  -H "Content-Type: application/json" \
-  -d '{"level":"info","message":"All auth methods passed"}'
 ```
 
 **Authentication Notes:**
 - When no authentication is configured, all requests are accepted
-- When authentication is configured, all enabled methods must pass validation
+- Only one authentication method can be configured at a time
 - Failed authentication returns HTTP 401 Unauthorized
 - Authentication errors are logged with request details
 

@@ -50,15 +50,13 @@ inputs:
       # Optional authentication configuration
       # auth:
       #   # Basic authentication
-      #   basic:
-      #     username: "admin"
-      #     password: "${HTTP_PASSWORD}"
+      #   username: "admin"
+      #   password: "${HTTP_PASSWORD}"
       #   # Bearer token authentication
       #   bearer_token: "${HTTP_BEARER_TOKEN}"
       #   # API key authentication
-      #   api_key:
-      #     header: "X-API-Key"
-      #     value: "${HTTP_API_KEY}"
+      #   api_key: "${HTTP_API_KEY}"
+      #   api_key_header: "X-API-Key"
       #   # Client certificate requirement for MTLS
       #   client_cert_required: true
       resilient: true              # Enable automatic reconnection
