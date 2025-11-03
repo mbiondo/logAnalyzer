@@ -41,19 +41,31 @@ inputs:
       max_retries: 0                 # Max retries (0 = infinite, default: 0)
       health_check_interval: 30      # Health check interval in seconds (default: 30)
 
-  # HTTP/HTTPS Input with TLS support
+  # HTTP/HTTPS Input with TLS and Authentication support
   - type: http
     name: "https-input"
     config:
       port: "8443"
+      # Authentication Configuration (optional)
+      auth:
+        # Basic authentication
+        username: "admin"
+        password: "${HTTP_PASSWORD}"  # Use environment variable
+        # Bearer token authentication
+        # bearer_token: "${HTTP_BEARER_TOKEN}"
+        # API key authentication
+        # api_key: "${HTTP_API_KEY}"
+        # api_key_header: "X-API-Key"
+        # Client certificate requirement for MTLS
+        # client_cert_required: true
       # TLS Configuration for HTTPS server
       tls:
         enabled: true
         # Server certificate validation (for client auth)
-        # ca_cert: "/path/to/ca.pem"              # CA certificate for client verification
-        # insecure_skip_verify: false             # Skip certificate verification (not recommended)
-        # min_version: "1.2"                      # Minimum TLS version (1.0, 1.1, 1.2, 1.3)
-        # max_version: "1.3"                      # Maximum TLS version
+        ca_cert: "/path/to/ca.pem"              # CA certificate for client verification
+        insecure_skip_verify: false             # Skip certificate verification (not recommended)
+        min_version: "1.2"                      # Minimum TLS version (1.0, 1.1, 1.2, 1.3)
+        max_version: "1.3"                      # Maximum TLS version
       # Server certificates (required for HTTPS)
       cert_file: "/path/to/server-cert.pem"
       key_file: "/path/to/server-key.pem"

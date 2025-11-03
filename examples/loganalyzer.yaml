@@ -47,6 +47,18 @@ inputs:
     name: "http-api"
     config:
       port: "8080"
+      # Optional authentication configuration
+      # auth:
+      #   # Basic authentication
+      #   username: "admin"
+      #   password: "${HTTP_PASSWORD}"
+      #   # Bearer token authentication
+      #   bearer_token: "${HTTP_BEARER_TOKEN}"
+      #   # API key authentication
+      #   api_key: "${HTTP_API_KEY}"
+      #   api_key_header: "X-API-Key"
+      #   # Client certificate requirement for MTLS
+      #   client_cert_required: true
       resilient: true              # Enable automatic reconnection
 
   # Kafka topic consumption

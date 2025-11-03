@@ -299,7 +299,7 @@ func TestHTTPInputWithMTLS(t *testing.T) {
 
 	resp, err := clientNoCert.Post(testURL, "application/json", strings.NewReader(testBody))
 	if err == nil {
-		resp.Body.Close()
+		_ = resp.Body.Close() // Ignore error since we're testing that this should fail
 		t.Error("Expected request without client certificate to fail, but it succeeded")
 	}
 

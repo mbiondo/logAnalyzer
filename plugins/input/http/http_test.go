@@ -375,3 +375,297 @@ func TestHTTPInputIntegration(t *testing.T) {
 		t.Errorf("Expected level 'error', got '%s'", logEntry.Level)
 	}
 }
+
+func TestAuthConfigValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  AuthConfig
+		wantErr bool
+	}{
+		{
+			name:    "no auth configured",
+			config:  AuthConfig{},
+			wantErr: false,
+		},
+		{
+			name: "basic auth valid",
+			config: AuthConfig{
+				Username: "user",
+				Password: "pass",
+			},
+			wantErr: false,
+		},
+		{
+			name: "basic auth missing password",
+			config: AuthConfig{
+				Username: "user",
+			},
+			wantErr: true,
+		},
+		{
+			name: "basic auth missing username",
+			config: AuthConfig{
+				Password: "pass",
+			},
+			wantErr: true,
+		},
+		{
+			name: "bearer token valid",
+			config: AuthConfig{
+				BearerToken: "token123",
+			},
+			wantErr: false,
+		},
+		{
+			name: "api key valid",
+			config: AuthConfig{
+				APIKey: "key123",
+			},
+			wantErr: false,
+		},
+		{
+			name: "multiple auth methods - basic and bearer",
+			config: AuthConfig{
+				Username:    "user",
+				Password:    "pass",
+				BearerToken: "token",
+			},
+			wantErr: true,
+		},
+		{
+			name: "multiple auth methods - bearer and api key",
+			config: AuthConfig{
+				BearerToken: "token",
+				APIKey:      "key",
+			},
+			wantErr: true,
+		},
+		{
+			name: "multiple auth methods - all three",
+			config: AuthConfig{
+				Username:    "user",
+				Password:    "pass",
+				BearerToken: "token",
+				APIKey:      "key",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("AuthConfig.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestHTTPInputAuthenticateRequest(t *testing.T) {
+	tests := []struct {
+		name           string
+		authConfig     AuthConfig
+		requestHeaders map[string]string
+		wantStatus     int
+	}{
+		{
+			name:       "no auth configured - should pass",
+			authConfig: AuthConfig{},
+			wantStatus: 200,
+		},
+		{
+			name: "basic auth - valid credentials",
+			authConfig: AuthConfig{
+				Username: "testuser",
+				Password: "testpass",
+			},
+			requestHeaders: map[string]string{
+				"Authorization": "Basic dGVzdHVzZXI6dGVzdHBhc3M=", // base64 of testuser:testpass
+			},
+			wantStatus: 200,
+		},
+		{
+			name: "basic auth - invalid credentials",
+			authConfig: AuthConfig{
+				Username: "testuser",
+				Password: "testpass",
+			},
+			requestHeaders: map[string]string{
+				"Authorization": "Basic d3Jvbmd1c2VyOndyb25ncGFzcw==", // base64 of wronguser:wrongpass
+			},
+			wantStatus: 401,
+		},
+		{
+			name: "basic auth - no auth header",
+			authConfig: AuthConfig{
+				Username: "testuser",
+				Password: "testpass",
+			},
+			wantStatus: 401,
+		},
+		{
+			name: "bearer token - valid token",
+			authConfig: AuthConfig{
+				BearerToken: "valid-token-123",
+			},
+			requestHeaders: map[string]string{
+				"Authorization": "Bearer valid-token-123",
+			},
+			wantStatus: 200,
+		},
+		{
+			name: "bearer token - invalid token",
+			authConfig: AuthConfig{
+				BearerToken: "valid-token-123",
+			},
+			requestHeaders: map[string]string{
+				"Authorization": "Bearer invalid-token",
+			},
+			wantStatus: 401,
+		},
+		{
+			name: "bearer token - no auth header",
+			authConfig: AuthConfig{
+				BearerToken: "valid-token-123",
+			},
+			wantStatus: 401,
+		},
+		{
+			name: "api key - valid key with default header",
+			authConfig: AuthConfig{
+				APIKey: "valid-api-key",
+			},
+			requestHeaders: map[string]string{
+				"X-API-Key": "valid-api-key",
+			},
+			wantStatus: 200,
+		},
+		{
+			name: "api key - valid key with custom header",
+			authConfig: AuthConfig{
+				APIKey:       "valid-api-key",
+				APIKeyHeader: "X-Custom-Key",
+			},
+			requestHeaders: map[string]string{
+				"X-Custom-Key": "valid-api-key",
+			},
+			wantStatus: 200,
+		},
+		{
+			name: "api key - invalid key",
+			authConfig: AuthConfig{
+				APIKey: "valid-api-key",
+			},
+			requestHeaders: map[string]string{
+				"X-API-Key": "invalid-key",
+			},
+			wantStatus: 401,
+		},
+		{
+			name: "api key - missing header",
+			authConfig: AuthConfig{
+				APIKey: "valid-api-key",
+			},
+			wantStatus: 401,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := Config{
+				Port: "8080",
+				Auth: tt.authConfig,
+			}
+			input := NewHTTPInputWithConfig(config)
+
+			// Set up a log channel to prevent blocking
+			logCh := make(chan *core.Log, 10)
+			input.SetLogChannel(logCh)
+
+			req := httptest.NewRequest("POST", "/logs", bytes.NewReader([]byte("test log")))
+			req.Header.Set("Content-Type", "text/plain")
+			for key, value := range tt.requestHeaders {
+				req.Header.Set(key, value)
+			}
+
+			w := httptest.NewRecorder()
+			input.handleLogs(w, req)
+
+			if w.Code != tt.wantStatus {
+				t.Errorf("Expected status %d, got %d", tt.wantStatus, w.Code)
+			}
+		})
+	}
+}
+
+func TestHTTPInputFromConfigWithAuth(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    map[string]any
+		wantError bool
+	}{
+		{
+			name: "valid basic auth config",
+			config: map[string]any{
+				"port": "8080",
+				"auth": map[string]any{
+					"username": "testuser",
+					"password": "testpass",
+				},
+			},
+			wantError: false,
+		},
+		{
+			name: "invalid basic auth - missing password",
+			config: map[string]any{
+				"port": "8080",
+				"auth": map[string]any{
+					"username": "testuser",
+				},
+			},
+			wantError: true,
+		},
+		{
+			name: "valid bearer token config",
+			config: map[string]any{
+				"port": "8080",
+				"auth": map[string]any{
+					"bearer_token": "test-token",
+				},
+			},
+			wantError: false,
+		},
+		{
+			name: "valid api key config",
+			config: map[string]any{
+				"port": "8080",
+				"auth": map[string]any{
+					"api_key": "test-key",
+				},
+			},
+			wantError: false,
+		},
+		{
+			name: "invalid - multiple auth methods",
+			config: map[string]any{
+				"port": "8080",
+				"auth": map[string]any{
+					"username":     "testuser",
+					"password":     "testpass",
+					"bearer_token": "test-token",
+				},
+			},
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewHTTPInputFromConfig(tt.config)
+			if (err != nil) != tt.wantError {
+				t.Errorf("NewHTTPInputFromConfig() error = %v, wantError %v", err, tt.wantError)
+			}
+		})
+	}
+}

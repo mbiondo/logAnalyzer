@@ -174,21 +174,45 @@ Pre-configured with:
 ### Send Test Logs via HTTP
 
 ```bash
-# Send INFO log
+# Send INFO log (no authentication)
 curl -X POST http://localhost:8080/logs \
   -H "Content-Type: application/json" \
   -d '{"level":"info","message":"Test log from HTTP"}'
 
-# Send ERROR log
+# Send ERROR log (no authentication)
 curl -X POST http://localhost:8080/logs \
   -H "Content-Type: application/json" \
   -d '{"level":"error","message":"Critical error occurred"}'
 
-# Send plain text
+# Send plain text (no authentication)
 curl -X POST http://localhost:8080/logs \
   -H "Content-Type: text/plain" \
   -d "Simple text log message"
+
+# Send with Basic authentication
+curl -X POST http://localhost:8080/logs \
+  -u "admin:secret123" \
+  -H "Content-Type: application/json" \
+  -d '{"level":"info","message":"Authenticated log"}'
+
+# Send with Bearer token
+curl -X POST http://localhost:8080/logs \
+  -H "Authorization: Bearer your-jwt-token-here" \
+  -H "Content-Type: application/json" \
+  -d '{"level":"info","message":"Token authenticated log"}'
+
+# Send with API key
+curl -X POST http://localhost:8080/logs \
+  -H "X-API-Key: your-api-key-here" \
+  -H "Content-Type: application/json" \
+  -d '{"level":"info","message":"API key authenticated log"}'
 ```
+
+**Authentication Notes:**
+- When no authentication is configured, all requests are accepted
+- Only one authentication method can be configured at a time
+- Failed authentication returns HTTP 401 Unauthorized
+- Authentication errors are logged with request details
 
 ### Test LogAnalyzer API
 
