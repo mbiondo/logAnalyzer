@@ -3,6 +3,7 @@ package httpinput
 import (
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -117,8 +118,9 @@ func (h *HTTPInput) Start() error {
 			if h.config.CertFile != "" && h.config.KeyFile != "" {
 				err = h.server.ListenAndServeTLS(h.config.CertFile, h.config.KeyFile)
 			} else {
-				log.Printf("Warning: TLS enabled but no cert/key files provided. Server will not start.")
-				err = http.ErrServerClosed
+				err = fmt.Errorf("TLS enabled but certificate files not provided: cert_file and key_file are required")
+				log.Printf("Error: %v", err)
+				return
 			}
 		} else {
 			log.Printf("HTTP input server starting on port %s", h.port)

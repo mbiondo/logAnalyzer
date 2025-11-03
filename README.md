@@ -16,8 +16,8 @@ A flexible, production-ready log processing system with intelligent routing, aut
 - 🎯 **Smart Routing**: Route specific inputs to specific outputs with independent filtering
 - ⚡ **Hot Reload**: Update configuration without restarting or dropping logs
 - 🔌 **Extensible**: Plugin architecture - add custom inputs, outputs, and filters
-- � **Secure by Default**: End-to-end TLS encryption with optional mutual TLS authentication
-- �📊 **Production Ready**: 71% test coverage with race condition verification
+- 🛡️ **Secure by Default**: End-to-end TLS encryption with optional mutual TLS authentication
+- 📊 **Production Ready**: 71% test coverage with race condition verification
 
 ## 🚀 Quick Start
 
