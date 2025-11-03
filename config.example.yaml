@@ -41,6 +41,45 @@ inputs:
       max_retries: 0                 # Max retries (0 = infinite, default: 0)
       health_check_interval: 30      # Health check interval in seconds (default: 30)
 
+  # HTTP/HTTPS Input with TLS support
+  - type: http
+    name: "https-input"
+    config:
+      port: "8443"
+      # TLS Configuration for HTTPS server
+      tls:
+        enabled: true
+        # Server certificate validation (for client auth)
+        # ca_cert: "/path/to/ca.pem"              # CA certificate for client verification
+        # insecure_skip_verify: false             # Skip certificate verification (not recommended)
+        # min_version: "1.2"                      # Minimum TLS version (1.0, 1.1, 1.2, 1.3)
+        # max_version: "1.3"                      # Maximum TLS version
+      # Server certificates (required for HTTPS)
+      cert_file: "/path/to/server-cert.pem"
+      key_file: "/path/to/server-key.pem"
+
+  # Kafka Input with TLS/MTLS support
+  - type: kafka
+    name: "kafka-secure"
+    config:
+      brokers: ["kafka1.example.com:9093", "kafka2.example.com:9093"]
+      topic: "logs"
+      group_id: "loganalyzer-consumer"
+      # SASL Authentication
+      username: "loganalyzer"
+      password: "${KAFKA_PASSWORD}"  # Use environment variable
+      # TLS Configuration
+      tls:
+        enabled: true
+        # Server certificate validation
+        insecure_skip_verify: false
+        ca_cert: "/path/to/kafka-ca.pem"
+        # Client certificate for MTLS (optional)
+        # client_cert: "/path/to/client-cert.pem"
+        # client_key: "/path/to/client-key.pem"
+        min_version: "1.2"
+        server_name: "kafka.example.com"
+
 outputs:
   # Output to console
   - type: console
@@ -57,3 +96,44 @@ outputs:
       retry_interval: 10             # Retry interval in seconds (default: 10)
       max_retries: 0                 # Max retries (0 = infinite, default: 0)
       health_check_interval: 30      # Health check interval in seconds (default: 30)
+
+  # Elasticsearch Output with TLS/MTLS support
+  - type: elasticsearch
+    name: "es-secure"
+    config:
+      addresses: ["https://es1.example.com:9200", "https://es2.example.com:9200"]
+      username: "loganalyzer"
+      password: "${ES_PASSWORD}"
+      index: "logs-{yyyy.MM.dd}"
+      batch_size: 100
+      timeout: 30
+      # TLS Configuration
+      tls:
+        enabled: true
+        # Server certificate validation
+        insecure_skip_verify: false
+        ca_cert: "/path/to/es-ca.pem"
+        # Client certificate for MTLS (optional)
+        # client_cert: "/path/to/client-cert.pem"
+        # client_key: "/path/to/client-key.pem"
+        min_version: "1.2"
+
+  # Slack Output with TLS configuration
+  - type: slack
+    name: "slack-alerts"
+    sources: ["my-containers"]
+    filters:
+      - type: level
+        config:
+          levels: ["ERROR"]
+    config:
+      webhook_url: "${SLACK_WEBHOOK_URL}"
+      username: "LogAnalyzer"
+      channel: "#alerts"
+      icon_emoji: ":warning:"
+      timeout: 30
+      # TLS Configuration (optional, for custom certificates)
+      # tls:
+      #   enabled: true
+      #   ca_cert: "/path/to/ca.pem"
+      #   min_version: "1.2"

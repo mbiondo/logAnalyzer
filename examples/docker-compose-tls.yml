@@ -1,0 +1,222 @@
+services:
+  # Elasticsearch for log storage and search
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: loganalyzer-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - loganalyzer-network
+
+  # Kibana for Elasticsearch visualization
+  kibana:
+    image: kibana:8.11.0
+    container_name: loganalyzer-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_NAME=kibana
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - loganalyzer-network
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: loganalyzer-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - loganalyzer-network
+
+  # Grafana for monitoring dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: loganalyzer-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - elasticsearch
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - loganalyzer-network
+
+  # Kafka for log streaming
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: loganalyzer-kafka
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    depends_on:
+      - zookeeper
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - loganalyzer-network
+
+  # Zookeeper for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: loganalyzer-zookeeper
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_TICK_TIME=2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - loganalyzer-network
+
+  # Demo application that generates logs
+  demo-app:
+    image: alpine:latest
+    container_name: loganalyzer-demo-app
+    labels:
+      app: "demo"
+      environment: "test"
+    command: >
+      sh -c "
+      echo 'Starting demo application...';
+      while true; do
+        echo \"\$$(date '+%Y-%m-%d %H:%M:%S') INFO Application started successfully\";
+        sleep 2;
+        echo \"\$$(date '+%Y-%m-%d %H:%M:%S') DEBUG Processing request id=\$$RANDOM\";
+        sleep 1;
+        echo \"\$$(date '+%Y-%m-%d %H:%M:%S') WARN Memory usage at 75%\";
+        sleep 2;
+        if [ \$$((RANDOM % 5)) -eq 0 ]; then
+          echo \"\$$(date '+%Y-%m-%d %H:%M:%S') ERROR Failed to connect to database\";
+        fi;
+        sleep 3;
+        echo \"\$$(date '+%Y-%m-%d %H:%M:%S') INFO Request completed successfully\";
+        sleep 2;
+      done
+      "
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - loganalyzer-network
+
+  # LogAnalyzer service with TLS enabled
+  loganalyzer:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: loganalyzer-service-tls
+    environment:
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./loganalyzer-tls.yaml:/config.yaml:ro
+      - ./scripts/certs:/certs:ro  # Mount certificates directory
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - loganalyzer_wal:/data/wal            # Persistence volume for Write-Ahead Logging
+      - loganalyzer_buffers:/data/buffers    # Buffer volume for retry queues
+      - loganalyzer_dlq:/data/dlq            # Dead Letter Queue volume
+    command: ["-config", "/config.yaml"]
+    depends_on:
+      - elasticsearch
+      - prometheus
+      - kafka
+      - demo-app
+    ports:
+      - "8443:8443"  # HTTPS input endpoint (TLS enabled)
+      - "8080:8080"  # HTTP input endpoint (for backward compatibility)
+      - "9091:9091"  # Prometheus metrics endpoint
+      - "9093:9092"  # API metrics endpoint (host:9093 -> container:9092)
+    networks:
+      - loganalyzer-network
+    restart: unless-stopped
+
+volumes:
+  es_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  kafka_data:
+    driver: local
+  zookeeper_data:
+    driver: local
+  zookeeper_logs:
+    driver: local
+  loganalyzer_wal:
+    driver: local
+  loganalyzer_buffers:
+    driver: local
+  loganalyzer_dlq:
+    driver: local
+
+networks:
+  loganalyzer-network:
+    driver: bridge

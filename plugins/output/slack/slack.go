@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mbiondo/logAnalyzer/core"
+	"github.com/mbiondo/logAnalyzer/pkg/tlsconfig"
 )
 
 func init() {
@@ -18,12 +19,13 @@ func init() {
 
 // Config represents slack output configuration
 type Config struct {
-	WebhookURL string `yaml:"webhook_url"`          // Required: Slack webhook URL
-	Username   string `yaml:"username,omitempty"`   // Optional: Username to post as
-	Channel    string `yaml:"channel,omitempty"`    // Optional: Channel to post to
-	IconEmoji  string `yaml:"icon_emoji,omitempty"` // Optional: Emoji icon
-	IconURL    string `yaml:"icon_url,omitempty"`   // Optional: URL icon
-	Timeout    int    `yaml:"timeout,omitempty"`    // Optional: HTTP timeout in seconds
+	WebhookURL string           `yaml:"webhook_url"`          // Required: Slack webhook URL
+	Username   string           `yaml:"username,omitempty"`   // Optional: Username to post as
+	Channel    string           `yaml:"channel,omitempty"`    // Optional: Channel to post to
+	IconEmoji  string           `yaml:"icon_emoji,omitempty"` // Optional: Emoji icon
+	IconURL    string           `yaml:"icon_url,omitempty"`   // Optional: URL icon
+	Timeout    int              `yaml:"timeout,omitempty"`    // Optional: HTTP timeout in seconds
+	TLS        tlsconfig.Config `yaml:"tls,omitempty"`        // TLS configuration
 }
 
 // NewSlackOutputFromConfig creates a slack output from configuration map
@@ -84,11 +86,31 @@ func NewSlackOutput(config Config) (*SlackOutput, error) {
 		config.Timeout = 30
 	}
 
+	// Validate TLS config
+	if err := config.TLS.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid TLS config: %w", err)
+	}
+
+	// Create HTTP client
+	client := &http.Client{
+		Timeout: time.Duration(config.Timeout) * time.Second,
+	}
+
+	// Configure TLS transport if enabled
+	if config.TLS.Enabled {
+		tlsConfig, err := config.TLS.NewTLSConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create TLS config: %w", err)
+		}
+
+		client.Transport = &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
+	}
+
 	return &SlackOutput{
 		config: config,
-		client: &http.Client{
-			Timeout: time.Duration(config.Timeout) * time.Second,
-		},
+		client: client,
 		closed: false,
 	}, nil
 }

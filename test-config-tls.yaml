@@ -1,0 +1,74 @@
+# Example configuration with TLS/MTLS enabled for testing
+# This configuration demonstrates how to use the generated test certificates
+
+# Persistence configuration (optional)
+persistence:
+  enabled: false
+
+# Output buffer configuration (optional)
+output_buffer:
+  enabled: false
+
+# API configuration (optional)
+api:
+  enabled: true
+  port: 9090
+
+inputs:
+  # HTTP input with TLS (HTTPS server)
+  - type: http
+    name: "http-tls-test"
+    config:
+      port: "8443"
+      cert_file: "examples/scripts/certs/server-cert.pem"
+      key_file: "examples/scripts/certs/server-key.pem"
+      tls:
+        enabled: true
+        ca_cert_file: "examples/scripts/certs/ca-cert.pem"
+
+  # File input (no TLS needed)
+  - type: file
+    name: "file-test"
+    config:
+      path: "./test.log"
+      watch: true
+
+filters:
+  # JSON filter to parse structured logs
+  - type: json
+    name: "json-filter"
+    config:
+      enabled: true
+
+outputs:
+  # Console output (no TLS needed)
+  - type: console
+    name: "console-test"
+    sources: []
+    config:
+      format: "text"
+
+  # Elasticsearch output with TLS client authentication
+  - type: elasticsearch
+    name: "elasticsearch-tls-test"
+    sources: []
+    config:
+      addresses: ["https://localhost:9200"]
+      index: "loganalyzer-%{+yyyy.MM.dd}"
+      tls:
+        enabled: true
+        ca_cert_file: "examples/scripts/certs/ca-cert.pem"
+        client_cert_file: "examples/scripts/certs/client-cert.pem"
+        client_key_file: "examples/scripts/certs/client-key.pem"
+        insecure_skip_verify: true  # For testing with self-signed certs
+
+  # Slack output with custom CA
+  - type: slack
+    name: "slack-tls-test"
+    sources: []
+    config:
+      webhook_url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+      tls:
+        enabled: true
+        ca_cert_file: "examples/scripts/certs/ca-cert.pem"
+        insecure_skip_verify: false

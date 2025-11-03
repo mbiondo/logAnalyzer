@@ -1,7 +1,9 @@
 package httpinput
 
 import (
+	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -9,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/mbiondo/logAnalyzer/core"
+	"github.com/mbiondo/logAnalyzer/pkg/tlsconfig"
 )
 
 func init() {
@@ -18,7 +21,10 @@ func init() {
 
 // Config represents HTTP input configuration
 type Config struct {
-	Port string `yaml:"port,omitempty"`
+	Port     string           `yaml:"port,omitempty"`
+	TLS      tlsconfig.Config `yaml:"tls,omitempty"`       // TLS configuration for HTTPS
+	CertFile string           `yaml:"cert_file,omitempty"` // Server certificate file (for HTTPS)
+	KeyFile  string           `yaml:"key_file,omitempty"`  // Server key file (for HTTPS)
 }
 
 // NewHTTPInputFromConfig creates an HTTP input from configuration map
@@ -33,18 +39,25 @@ func NewHTTPInputFromConfig(config map[string]any) (any, error) {
 		cfg.Port = "8080"
 	}
 
-	return NewHTTPInput(cfg.Port), nil
+	// Validate TLS config
+	if err := cfg.TLS.Validate(); err != nil {
+		return nil, err
+	}
+
+	return NewHTTPInputWithConfig(cfg), nil
 }
 
 // HTTPInput receives logs via HTTP POST requests
 type HTTPInput struct {
-	port    string
-	server  *http.Server
-	logCh   chan<- *core.Log
-	stopCh  chan struct{}
-	wg      sync.WaitGroup
-	stopped bool   // Flag to prevent multiple stops
-	name    string // Name of this input instance
+	port      string
+	config    Config
+	server    *http.Server
+	logCh     chan<- *core.Log
+	stopCh    chan struct{}
+	wg        sync.WaitGroup
+	stopped   bool   // Flag to prevent multiple stops
+	name      string // Name of this input instance
+	tlsConfig *tls.Config
 }
 
 // NewHTTPInput creates a new HTTP input plugin
@@ -55,6 +68,20 @@ func NewHTTPInput(port string) *HTTPInput {
 
 	return &HTTPInput{
 		port:   port,
+		config: Config{Port: port},
+		stopCh: make(chan struct{}),
+	}
+}
+
+// NewHTTPInputWithConfig creates a new HTTP input plugin with full configuration
+func NewHTTPInputWithConfig(config Config) *HTTPInput {
+	if config.Port == "" {
+		config.Port = "8080"
+	}
+
+	return &HTTPInput{
+		port:   config.Port,
+		config: config,
 		stopCh: make(chan struct{}),
 	}
 }
@@ -70,16 +97,46 @@ func (h *HTTPInput) Start() error {
 		Handler: mux,
 	}
 
+	// Configure TLS if enabled
+	if h.config.TLS.Enabled {
+		tlsConfig, err := h.config.TLS.NewTLSConfig()
+		if err != nil {
+			return err
+		}
+		h.tlsConfig = tlsConfig
+		h.server.TLSConfig = tlsConfig
+	}
+
 	h.wg.Add(1)
 	go func() {
 		defer h.wg.Done()
-		log.Printf("HTTP input server starting on port %s", h.port)
-		if err := h.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+
+		var err error
+		if h.config.TLS.Enabled {
+			log.Printf("HTTPS input server starting on port %s (TLS enabled)", h.port)
+			// Use provided certificate files or TLS config
+			if h.config.CertFile != "" && h.config.KeyFile != "" {
+				err = h.server.ListenAndServeTLS(h.config.CertFile, h.config.KeyFile)
+			} else {
+				err = fmt.Errorf("TLS enabled but certificate files not provided: cert_file and key_file are required")
+				log.Printf("Error: %v", err)
+				return
+			}
+		} else {
+			log.Printf("HTTP input server starting on port %s", h.port)
+			err = h.server.ListenAndServe()
+		}
+
+		if err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server error: %v", err)
 		}
 	}()
 
-	log.Printf("HTTP input started on port %s", h.port)
+	if h.config.TLS.Enabled {
+		log.Printf("HTTPS input started on port %s (TLS)", h.port)
+	} else {
+		log.Printf("HTTP input started on port %s", h.port)
+	}
 	return nil
 }
 
