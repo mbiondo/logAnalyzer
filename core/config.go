@@ -296,31 +296,22 @@ func (cw *ConfigWatcher) handleFileChange() {
 
 // validateFilePath validates a file path to prevent directory traversal attacks
 func validateFilePath(path string) error {
-	// Allow absolute paths in test environments
-	if os.Getenv("UNIT_TEST") == "true" {
-		// Clean the path to resolve any .. or . components
-		cleanPath := filepath.Clean(path)
-		// Only check for directory traversal (..) in test mode
-		if strings.Contains(cleanPath, "..") {
-			return fmt.Errorf("path contains directory traversal: %s", path)
-		}
-		return nil
-	}
-
 	// Clean the path to resolve any .. or . components
 	cleanPath := filepath.Clean(path)
 
-	// Check if the cleaned path tries to escape the current directory
-	if strings.Contains(cleanPath, "..") {
-		return fmt.Errorf("path contains directory traversal: %s", path)
+	// filepath.Clean() normalizes the path and resolves .. components
+	// If after cleaning, the path tries to traverse outside its base, 
+	// filepath.Clean will preserve that structure for us to detect
+	
+	// For relative paths, ensure they don't try to traverse above current directory
+	if !filepath.IsAbs(cleanPath) {
+		// Check if path starts with ../ or ..\\ (Windows)
+		if strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) || cleanPath == ".." {
+			return fmt.Errorf("path contains directory traversal: %s", path)
+		}
 	}
-
-	// Additional check: ensure path doesn't start with dangerous patterns
-	if strings.HasPrefix(cleanPath, "/") || strings.HasPrefix(cleanPath, "\\") ||
-		strings.HasPrefix(cleanPath, "../") || strings.HasPrefix(cleanPath, "..\\") {
-		return fmt.Errorf("path contains absolute or traversal components: %s", path)
-	}
-
+	
+	// Absolute paths are allowed for production use (e.g., /etc/loganalyzer/config.yaml)
 	return nil
 }
 
@@ -341,8 +332,14 @@ func validateFileInDirectory(filePath, baseDir string) error {
 		return fmt.Errorf("failed to get absolute path for base directory: %w", err)
 	}
 
-	// Check if file path starts with base directory path
-	if !strings.HasPrefix(absFilePath, absBaseDir) {
+	// Use filepath.Rel to check if the file path escapes the base directory
+	rel, err := filepath.Rel(absBaseDir, absFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to compute relative path: %w", err)
+	}
+	
+	// If the relative path starts with "..", the file is outside the base directory
+	if strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
 		return fmt.Errorf("file path is outside base directory: %s not in %s", filePath, baseDir)
 	}
 
