@@ -227,3 +227,167 @@ func TestHTTPInputWithTLS(t *testing.T) {
 		t.Fatal("Timeout waiting for log to be processed")
 	}
 }
+
+func TestHTTPInputWithMTLS(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Generate test certificates
+	caCert, caKey := generateTestCACert(t)
+	serverCert, serverKey := generateTestServerCert(t, caCert, caKey)
+	clientCert, clientKey := generateTestClientCert(t, caCert, caKey)
+
+	// Write certificates to temporary files
+	caCertFile := filepath.Join(tmpDir, "ca-cert.pem")
+	serverCertFile := filepath.Join(tmpDir, "server-cert.pem")
+	serverKeyFile := filepath.Join(tmpDir, "server-key.pem")
+	clientCertFile := filepath.Join(tmpDir, "client-cert.pem")
+	clientKeyFile := filepath.Join(tmpDir, "client-key.pem")
+
+	writeCertToFile(t, caCertFile, caCert)
+	writeCertToFile(t, serverCertFile, serverCert)
+	writeKeyToFile(t, serverKeyFile, serverKey)
+	writeCertToFile(t, clientCertFile, clientCert)
+	writeKeyToFile(t, clientKeyFile, clientKey)
+
+	// Create HTTP input with mTLS configuration
+	config := Config{
+		Port:     "8444", // Use different port for testing
+		CertFile: serverCertFile,
+		KeyFile:  serverKeyFile,
+		TLS: tlsconfig.Config{
+			Enabled:            true,
+			ClientCACert:       caCertFile,           // CA for client verification
+			ClientAuth:         "require-and-verify", // Require and verify client certificates
+			InsecureSkipVerify: false,
+			MinVersion:         "1.2",
+		},
+	}
+
+	input := NewHTTPInputWithConfig(config)
+	input.SetName("test-mtls-input")
+
+	// Create a channel to receive logs
+	logCh := make(chan *core.Log, 10)
+	input.SetLogChannel(logCh)
+
+	// Start the input
+	err := input.Start()
+	if err != nil {
+		t.Fatalf("Failed to start HTTP input with mTLS: %v", err)
+	}
+	defer func() {
+		if stopErr := input.Stop(); stopErr != nil {
+			t.Errorf("Failed to stop input: %v", stopErr)
+		}
+	}()
+
+	// Wait for the server to start
+	time.Sleep(500 * time.Millisecond)
+
+	testPort := "8444"
+	testURL := fmt.Sprintf("https://localhost:%s/logs", testPort)
+
+	// Test 1: Request without client certificate should fail
+	clientNoCert := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, // Skip server cert verification for test
+			},
+		},
+	}
+	testBody := `{"level": "info", "message": "Test mTLS log without client cert", "timestamp": "2025-10-30T15:00:00Z"}`
+
+	resp, err := clientNoCert.Post(testURL, "application/json", strings.NewReader(testBody))
+	if err == nil {
+		resp.Body.Close()
+		t.Error("Expected request without client certificate to fail, but it succeeded")
+	}
+
+	// Test 2: Request with valid client certificate should succeed
+	clientCertData, err := tls.LoadX509KeyPair(clientCertFile, clientKeyFile)
+	if err != nil {
+		t.Fatalf("Failed to load client certificate: %v", err)
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPEM, err := os.ReadFile(caCertFile)
+	if err != nil {
+		t.Fatalf("Failed to read CA cert: %v", err)
+	}
+	caCertPool.AppendCertsFromPEM(caCertPEM)
+
+	clientWithCert := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				Certificates:       []tls.Certificate{clientCertData},
+				RootCAs:            caCertPool,
+				InsecureSkipVerify: true, // Skip server cert verification for test
+			},
+		},
+	}
+
+	resp, err = clientWithCert.Post(testURL, "application/json", strings.NewReader(testBody))
+	if err != nil {
+		t.Fatalf("Failed to make mTLS request with valid client certificate: %v", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("Failed to close response body: %v", closeErr)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200 for valid mTLS request, got %d", resp.StatusCode)
+	}
+
+	// Check that the log was received
+	select {
+	case log := <-logCh:
+		if log.Level != "info" {
+			t.Errorf("Expected log level 'info', got '%s'", log.Level)
+		}
+		if !strings.Contains(log.Message, `"level":"info"`) ||
+			!strings.Contains(log.Message, `"message":"Test mTLS log without client cert"`) {
+			t.Errorf("Expected log message to contain mTLS test data, got '%s'", log.Message)
+		}
+		if log.Source != "test-mtls-input" {
+			t.Errorf("Expected source 'test-mtls-input', got '%s'", log.Source)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for log to be processed")
+	}
+}
+
+func generateTestClientCert(t *testing.T, caCert *x509.Certificate, caKey *rsa.PrivateKey) (*x509.Certificate, *rsa.PrivateKey) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(3),
+		Subject: pkix.Name{
+			Organization: []string{"Test Client"},
+			CommonName:   "test-client",
+		},
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().AddDate(1, 0, 0),
+		KeyUsage:  x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageClientAuth,
+		},
+		DNSNames: []string{"test-client"},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, caCert, &priv.PublicKey, caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cert, err := x509.ParseCertificate(certDER)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return cert, priv
+}

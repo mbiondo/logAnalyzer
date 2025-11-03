@@ -663,7 +663,7 @@ curl --cacert certs/ca.pem \
 
 ### TLS Configuration Options
 
-#### Server TLS (HTTPS Input)
+#### Server TLS with mTLS (HTTPS Input)
 ```yaml
 inputs:
   - type: http
@@ -671,11 +671,14 @@ inputs:
       port: "8443"
       tls:
         enabled: true
-        # Server certificate validation (for client auth)
-        ca_cert: "./examples/certs/ca.pem"        # CA for client verification
+        # Server certificate validation (when this service connects to external services)
+        ca_cert: "./examples/certs/ca.pem"
         insecure_skip_verify: false
         min_version: "1.2"
         max_version: "1.3"
+        # Client certificate verification (for mTLS - server requires client certs)
+        client_ca_cert: "./examples/certs/ca.pem"  # CA for verifying client certificates
+        client_auth: "require-and-verify"          # Require and verify client certificates
       # Server certificates (required)
       cert_file: "./examples/certs/server.pem"
       key_file: "./examples/certs/server.key"
@@ -720,8 +723,9 @@ inputs:
 | `ca.pem` | Certificate Authority | Server certificate validation |
 | `server.pem` | Server certificate | HTTPS server |
 | `server.key` | Server private key | HTTPS server |
-| `client.pem` | Client certificate | MTLS authentication |
-| `client.key` | Client private key | MTLS authentication |
+| `client.pem` | Client certificate | mTLS authentication (client-side) |
+| `client.key` | Client private key | mTLS authentication (client-side) |
+| `client-ca.pem` | Client CA certificate | mTLS client verification (server-side) |
 
 ### Security Best Practices
 
@@ -882,6 +886,9 @@ inputs:
         insecure_skip_verify: false
         min_version: "1.2"
         max_version: "1.3"
+        # Client certificate verification (for mTLS)
+        client_ca_cert: "/certs/ca-cert.pem"  # CA for verifying client certificates
+        client_auth: "require-and-verify"     # Require and verify client certificates
       # Server certificates (required)
       cert_file: "/certs/server-cert.pem"
       key_file: "/certs/server-key.pem"
@@ -910,8 +917,9 @@ outputs:
 | `ca-cert.pem` | Certificate Authority | Server certificate validation |
 | `server-cert.pem` | Server certificate | HTTPS server |
 | `server-key.pem` | Server private key | HTTPS server |
-| `client-cert.pem` | Client certificate | MTLS authentication |
-| `client-key.pem` | Client private key | MTLS authentication |
+| `client-cert.pem` | Client certificate | MTLS authentication (client-side) |
+| `client-key.pem` | Client private key | MTLS authentication (client-side) |
+| `ca-cert.pem` | Client CA certificate | MTLS client verification (server-side) |
 
 ### Security Best Practices
 

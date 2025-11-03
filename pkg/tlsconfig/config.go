@@ -29,6 +29,11 @@ type Config struct {
 
 	// Server Name (SNI)
 	ServerName string `yaml:"server_name,omitempty"` // Server name for SNI
+
+	// Server-side Client Certificate Verification (for MTLS servers)
+	ClientCACert     string `yaml:"client_ca_cert,omitempty"`      // Path to CA certificate for client verification
+	ClientCACertData string `yaml:"client_ca_cert_data,omitempty"` // CA certificate data for client verification
+	ClientAuth       string `yaml:"client_auth,omitempty"`         // Client auth mode: "no", "request", "require", "verify-if-given", "require-and-verify"
 }
 
 // NewTLSConfig creates a *tls.Config from the TLS configuration
@@ -80,6 +85,24 @@ func (c *Config) NewTLSConfig() (*tls.Config, error) {
 		tlsConfig.Certificates = []tls.Certificate{cert}
 	}
 
+	// Load client CA certificate for server-side client verification (MTLS)
+	if c.ClientCACert != "" || c.ClientCACertData != "" {
+		clientCertPool, err := c.loadClientCACertPool()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load client CA certificate: %w", err)
+		}
+		tlsConfig.ClientCAs = clientCertPool
+	}
+
+	// Set client authentication mode
+	if c.ClientAuth != "" {
+		clientAuth, err := parseClientAuth(c.ClientAuth)
+		if err != nil {
+			return nil, fmt.Errorf("invalid client_auth: %w", err)
+		}
+		tlsConfig.ClientAuth = clientAuth
+	}
+
 	return tlsConfig, nil
 }
 
@@ -105,6 +128,33 @@ func (c *Config) loadCACertPool() (*x509.CertPool, error) {
 	// Add certificate to pool
 	if !certPool.AppendCertsFromPEM(caCertData) {
 		return nil, fmt.Errorf("failed to parse CA certificate")
+	}
+
+	return certPool, nil
+}
+
+// loadClientCACertPool loads the client CA certificate pool for server-side client verification
+func (c *Config) loadClientCACertPool() (*x509.CertPool, error) {
+	certPool := x509.NewCertPool()
+
+	var caCertData []byte
+	var err error
+
+	// Load from file or use provided data
+	if c.ClientCACert != "" {
+		caCertData, err = os.ReadFile(c.ClientCACert)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read client CA cert file: %w", err)
+		}
+	} else if c.ClientCACertData != "" {
+		caCertData = []byte(c.ClientCACertData)
+	} else {
+		return nil, fmt.Errorf("no client CA certificate provided")
+	}
+
+	// Add certificate to pool
+	if !certPool.AppendCertsFromPEM(caCertData) {
+		return nil, fmt.Errorf("failed to parse client CA certificate")
 	}
 
 	return certPool, nil
@@ -164,6 +214,24 @@ func parseTLSVersion(version string) (uint16, error) {
 	}
 }
 
+// parseClientAuth parses a client auth string to tls.ClientAuthType
+func parseClientAuth(clientAuth string) (tls.ClientAuthType, error) {
+	switch clientAuth {
+	case "no":
+		return tls.NoClientCert, nil
+	case "request":
+		return tls.RequestClientCert, nil
+	case "require":
+		return tls.RequireAnyClientCert, nil
+	case "verify-if-given":
+		return tls.VerifyClientCertIfGiven, nil
+	case "require-and-verify":
+		return tls.RequireAndVerifyClientCert, nil
+	default:
+		return 0, fmt.Errorf("unknown client_auth: %s (supported: no, request, require, verify-if-given, require-and-verify)", clientAuth)
+	}
+}
+
 // Validate validates the TLS configuration
 func (c *Config) Validate() error {
 	if !c.Enabled {
@@ -202,6 +270,18 @@ func (c *Config) Validate() error {
 
 	if c.MaxVersion != "" {
 		if _, err := parseTLSVersion(c.MaxVersion); err != nil {
+			return err
+		}
+	}
+
+	// Validate client CA certificate
+	if c.ClientCACert != "" && c.ClientCACertData != "" {
+		return fmt.Errorf("cannot specify both client_ca_cert and client_ca_cert_data")
+	}
+
+	// Validate client auth
+	if c.ClientAuth != "" {
+		if _, err := parseClientAuth(c.ClientAuth); err != nil {
 			return err
 		}
 	}

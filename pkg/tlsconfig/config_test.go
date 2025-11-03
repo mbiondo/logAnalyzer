@@ -79,12 +79,29 @@ func TestConfig_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "invalid min version",
+			name: "cannot specify both client_ca_cert and client_ca_cert_data",
 			config: Config{
-				Enabled:    true,
-				MinVersion: "invalid",
+				Enabled:          true,
+				ClientCACert:     "/path/to/client-ca.pem",
+				ClientCACertData: "-----BEGIN CERTIFICATE-----",
 			},
 			wantErr: true,
+		},
+		{
+			name: "invalid client auth",
+			config: Config{
+				Enabled:    true,
+				ClientAuth: "invalid",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid client auth",
+			config: Config{
+				Enabled:    true,
+				ClientAuth: "require-and-verify",
+			},
+			wantErr: false,
 		},
 		{
 			name: "valid min version",
@@ -164,29 +181,30 @@ func TestConfig_NewTLSConfig(t *testing.T) {
 	})
 }
 
-func TestParseTLSVersion(t *testing.T) {
+func TestParseClientAuth(t *testing.T) {
 	tests := []struct {
-		version string
-		want    uint16
-		wantErr bool
+		clientAuth string
+		want       tls.ClientAuthType
+		wantErr    bool
 	}{
-		{"1.0", tls.VersionTLS10, false},
-		{"1.1", tls.VersionTLS11, false},
-		{"1.2", tls.VersionTLS12, false},
-		{"1.3", tls.VersionTLS13, false},
+		{"no", tls.NoClientCert, false},
+		{"request", tls.RequestClientCert, false},
+		{"require", tls.RequireAnyClientCert, false},
+		{"verify-if-given", tls.VerifyClientCertIfGiven, false},
+		{"require-and-verify", tls.RequireAndVerifyClientCert, false},
 		{"invalid", 0, true},
-		{"2.0", 0, true},
+		{"", 0, true},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.version, func(t *testing.T) {
-			got, err := parseTLSVersion(tt.version)
+		t.Run(tt.clientAuth, func(t *testing.T) {
+			got, err := parseClientAuth(tt.clientAuth)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("parseTLSVersion() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("parseClientAuth() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("parseTLSVersion() = %v, want %v", got, tt.want)
+				t.Errorf("parseClientAuth() = %v, want %v", got, tt.want)
 			}
 		})
 	}
