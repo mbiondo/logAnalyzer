@@ -2,8 +2,10 @@ package dockerinput
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -145,7 +147,11 @@ func (d *DockerInput) getContainersToMonitor() ([]string, error) {
 		containerMap := make(map[string]bool) // Use map to avoid duplicates
 
 		for _, filter := range d.containerFilters {
-			cmd := exec.Command("docker", "ps", "--filter", "name="+filter, "--format", "{{.ID}}")
+			// Validate filter to prevent command injection
+			if !isValidDockerFilter(filter) {
+				return nil, fmt.Errorf("invalid docker filter: %s", filter)
+			}
+			cmd := exec.Command("docker", "ps", "--filter", "name="+filter, "--format", "{{.ID}}") // #nosec G204 - filter validated by isValidDockerFilter above
 			output, err := cmd.Output()
 			if err != nil {
 				return nil, err
@@ -327,4 +333,15 @@ func (d *DockerInput) getContainerName(containerID string) string {
 
 	name := strings.TrimSpace(string(output))
 	return strings.TrimPrefix(name, "/") // Remove leading slash
+}
+
+// isValidDockerFilter validates docker filter to prevent command injection
+// Docker container names should only contain alphanumeric characters, hyphens, underscores, and dots
+func isValidDockerFilter(filter string) bool {
+	if filter == "" {
+		return false
+	}
+	// Allow alphanumeric, hyphens, underscores, dots (no slashes for security)
+	validPattern := regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+	return validPattern.MatchString(filter)
 }

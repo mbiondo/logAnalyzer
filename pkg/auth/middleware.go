@@ -73,7 +73,7 @@ func (m *Middleware) hasEndpointPermission(key *APIKey, path, method string) boo
 	endpointPerms := map[string][]string{
 		"/health":  {"health"},
 		"/metrics": {"metrics", "health"}, // metrics permission includes health
-		"/status":  {"status", "health"},  // status permission includes health
+		"/status":  {"admin"},             // status requires admin permission
 	}
 
 	requiredPerms, exists := endpointPerms[path]

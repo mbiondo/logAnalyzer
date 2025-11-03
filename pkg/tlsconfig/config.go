@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -13,7 +14,7 @@ type Config struct {
 	Enabled bool `yaml:"enabled,omitempty"`
 
 	// Server Certificate Validation
-	InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty"` // Skip certificate verification (not recommended)
+	InsecureSkipVerify bool   `yaml:"insecure_skip_verify,omitempty"` // Skip certificate verification (DANGER: only for development!)
 	CACert             string `yaml:"ca_cert,omitempty"`              // Path to CA certificate file
 	CACertData         string `yaml:"ca_cert_data,omitempty"`         // CA certificate data (base64 or PEM)
 
@@ -42,8 +43,13 @@ func (c *Config) NewTLSConfig() (*tls.Config, error) {
 		return nil, nil
 	}
 
+	// Security warning for InsecureSkipVerify
+	if c.InsecureSkipVerify {
+		log.Printf("WARNING: TLS InsecureSkipVerify is enabled. This disables certificate verification and should only be used in development environments!")
+	}
+
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: c.InsecureSkipVerify,
+		InsecureSkipVerify: c.InsecureSkipVerify, // #nosec G402 - intentionally configurable for development
 		ServerName:         c.ServerName,
 	}
 
@@ -236,6 +242,11 @@ func parseClientAuth(clientAuth string) (tls.ClientAuthType, error) {
 func (c *Config) Validate() error {
 	if !c.Enabled {
 		return nil
+	}
+
+	// Security validation for InsecureSkipVerify
+	if c.InsecureSkipVerify {
+		log.Printf("SECURITY WARNING: TLS InsecureSkipVerify is enabled. This disables certificate verification and should NEVER be used in production!")
 	}
 
 	// Validate CA certificate

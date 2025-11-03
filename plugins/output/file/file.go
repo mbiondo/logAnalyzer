@@ -43,7 +43,7 @@ func NewFileOutput(config Config) (*FileOutput, error) {
 		return nil, fmt.Errorf("file path cannot be empty")
 	}
 
-	file, err := os.OpenFile(config.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	file, err := os.OpenFile(config.FilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", config.FilePath, err)
 	}

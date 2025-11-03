@@ -3,6 +3,8 @@ package core
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -67,7 +69,12 @@ type PluginDefinition struct {
 
 // LoadConfig loads configuration from a YAML file
 func LoadConfig(filename string) (*Config, error) {
-	data, err := os.ReadFile(filename)
+	// Validate filename to prevent path traversal
+	if err := validateFilePath(filename); err != nil {
+		return nil, fmt.Errorf("invalid config file path: %w", err)
+	}
+
+	data, err := os.ReadFile(filename) // #nosec G304 - path validated by validateFilePath above
 	if err != nil {
 		return nil, fmt.Errorf("error reading config file: %w", err)
 	}
@@ -77,7 +84,47 @@ func LoadConfig(filename string) (*Config, error) {
 		return nil, fmt.Errorf("error parsing config file: %w", err)
 	}
 
+	// Load API keys from environment variables if available
+	loadAPIKeysFromEnv(&config)
+
 	return &config, nil
+}
+
+// loadAPIKeysFromEnv loads API keys from environment variables
+func loadAPIKeysFromEnv(config *Config) {
+	// Check if API authentication is enabled
+	if !config.API.Auth.Enabled {
+		return
+	}
+
+	// Read API keys from environment variables
+	monitoringKey := os.Getenv("API_KEY_MONITORING")
+	adminKey := os.Getenv("API_KEY_ADMIN")
+
+	// If environment variables are set, use them instead of YAML config
+	if monitoringKey != "" || adminKey != "" {
+		config.API.Auth.APIKeys = []auth.APIKeyConfig{}
+
+		if monitoringKey != "" {
+			config.API.Auth.APIKeys = append(config.API.Auth.APIKeys, auth.APIKeyConfig{
+				ID:          "monitoring-key",
+				Secret:      monitoringKey,
+				Permissions: []string{"health", "metrics"},
+				Name:        "Monitoring API Key",
+				Description: "API key for monitoring endpoints",
+			})
+		}
+
+		if adminKey != "" {
+			config.API.Auth.APIKeys = append(config.API.Auth.APIKeys, auth.APIKeyConfig{
+				ID:          "admin-key",
+				Secret:      adminKey,
+				Permissions: []string{"health", "metrics", "admin"},
+				Name:        "Admin API Key",
+				Description: "API key with full administrative access",
+			})
+		}
+	}
 }
 
 // GetPluginConfig extracts and unmarshals plugin-specific configuration
@@ -245,4 +292,48 @@ func (cw *ConfigWatcher) handleFileChange() {
 
 	fmt.Printf("Config file changed, reloading...\n")
 	cw.onReload(config)
+}
+
+// validateFilePath validates a file path to prevent directory traversal attacks
+func validateFilePath(path string) error {
+	// Clean the path to resolve any .. or . components
+	cleanPath := filepath.Clean(path)
+
+	// Check if the cleaned path tries to escape the current directory
+	if strings.Contains(cleanPath, "..") {
+		return fmt.Errorf("path contains directory traversal: %s", path)
+	}
+
+	// Additional check: ensure path doesn't start with dangerous patterns
+	if strings.HasPrefix(cleanPath, "/") || strings.HasPrefix(cleanPath, "\\") ||
+		strings.HasPrefix(cleanPath, "../") || strings.HasPrefix(cleanPath, "..\\") {
+		return fmt.Errorf("path contains absolute or traversal components: %s", path)
+	}
+
+	return nil
+}
+
+// validateFileInDirectory validates that a file path is within a specified base directory
+func validateFileInDirectory(filePath, baseDir string) error {
+	// Clean both paths
+	cleanFilePath := filepath.Clean(filePath)
+	cleanBaseDir := filepath.Clean(baseDir)
+
+	// Get absolute paths to compare
+	absFilePath, err := filepath.Abs(cleanFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for file: %w", err)
+	}
+
+	absBaseDir, err := filepath.Abs(cleanBaseDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for base directory: %w", err)
+	}
+
+	// Check if file path starts with base directory path
+	if !strings.HasPrefix(absFilePath, absBaseDir) {
+		return fmt.Errorf("file path is outside base directory: %s not in %s", filePath, baseDir)
+	}
+
+	return nil
 }

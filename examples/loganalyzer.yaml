@@ -26,6 +26,19 @@ output_buffer:
 api:
   enabled: true                    # Enable metrics API server
   port: 9092                       # Port for the API server
+  auth:
+    enabled: true                  # Enable API authentication
+    require_key: true              # Require API key for protected endpoints
+    health_bypass: true            # Allow health endpoint without auth
+    api_keys:
+      - id: "monitoring-key"
+        secret: "${API_KEY_MONITORING}"
+        permissions: ["health", "metrics"]
+        name: "Monitoring Key"
+      - id: "admin-key"
+        secret: "${API_KEY_ADMIN}"
+        permissions: ["health", "metrics", "status", "admin"]
+        name: "Admin Key"
 
 inputs:
   # Docker container logs

@@ -226,8 +226,9 @@ func (e *Engine) startAPIServer() {
 	}
 
 	e.apiServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", e.apiConfig.Port),
-		Handler: mux,
+		Addr:              fmt.Sprintf(":%d", e.apiConfig.Port),
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	log.Printf("Starting API server on port %d", e.apiConfig.Port)

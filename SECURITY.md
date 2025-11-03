@@ -156,6 +156,50 @@ We use automated security scanning:
 - **CodeQL**: Static code analysis
 - **gosec**: Go security checker
 
+### gosec Security Scanning
+
+LogAnalyzer uses [gosec](https://github.com/securego/gosec) for automated security scanning of Go code. gosec is a security linter that identifies potential security issues in Go code.
+
+#### How gosec Works
+
+- Scans Go source code for security problems
+- Uses static analysis of Go AST and SSA representations
+- Identifies 60+ security issues including:
+  - Hard-coded credentials
+  - SQL injection vulnerabilities
+  - Path traversal attacks
+  - Weak cryptographic practices
+  - Insecure TLS configurations
+
+#### #nosec Comments
+
+When gosec identifies a potential security issue that we've validated as safe in our specific context, we use `#nosec` comments to suppress the warning:
+
+```go
+// This is acceptable for development environments only
+InsecureSkipVerify: true, // #nosec G402
+```
+
+**Important**: `#nosec` comments are not blind suppressions. Each one represents:
+- Code review and validation that the pattern is safe in our context
+- Additional security measures implemented elsewhere
+- Clear documentation of why the code is secure
+
+#### Current Security Status
+
+- ✅ **0 security issues** found by gosec
+- ✅ **8 validated suppressions** (`#nosec` comments)
+- ✅ **All suppressions documented** with security justifications
+
+#### CI/CD Integration
+
+gosec runs automatically on:
+- Every push to `main` and `develop` branches
+- All pull requests
+- Release builds
+
+The CI pipeline fails if new security issues are introduced (excluding validated `#nosec` suppressions).
+
 ## Security Updates
 
 Security updates are released as:

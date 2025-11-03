@@ -175,6 +175,8 @@ services:
     container_name: loganalyzer-service
     environment:
       - LOG_LEVEL=INFO
+      - API_KEY_MONITORING=monitoring-key-123
+      - API_KEY_ADMIN=admin-key-456
     volumes:
       - ./loganalyzer.yaml:/config.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -188,7 +190,7 @@ services:
     #   prometheus:
     #     condition: service_healthy
     #   kafka:
-    #     condition: service_healthy
+    #     condition: service_started
     #   demo-app:
     #     condition: service_started
     ports:
