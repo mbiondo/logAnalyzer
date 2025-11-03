@@ -1,6 +1,7 @@
 package elasticsearch
 
 import (
+	"log"
 	"os"
 	"testing"
 	"time"
@@ -10,9 +11,13 @@ import (
 
 func TestMain(m *testing.M) {
 	// Set environment variable to skip connection tests in unit tests
-	os.Setenv("UNIT_TEST", "true")
+	if err := os.Setenv("UNIT_TEST", "true"); err != nil {
+		log.Printf("Failed to set UNIT_TEST env var: %v", err)
+	}
 	code := m.Run()
-	os.Unsetenv("UNIT_TEST")
+	if err := os.Unsetenv("UNIT_TEST"); err != nil {
+		log.Printf("Failed to unset UNIT_TEST env var: %v", err)
+	}
 	os.Exit(code)
 }
 
@@ -35,9 +40,11 @@ func TestNewElasticsearchOutput(t *testing.T) {
 	output, err := NewElasticsearchOutput(config)
 	if err != nil {
 		t.Errorf("Expected success with valid config, got error: %v", err)
+		return
 	}
 	if output == nil {
 		t.Error("Expected non-nil output")
+		return
 	}
 
 	// Verify default values were set
@@ -176,7 +183,7 @@ func TestConfigValidation(t *testing.T) {
 			expectErr: false,
 		},
 		{
-			name: "Missing index",
+			name:   "Missing index",
 			config: Config{
 				// Empty addresses to avoid connection attempts
 			},
