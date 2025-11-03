@@ -12,6 +12,9 @@ import (
 	"github.com/mbiondo/logAnalyzer/core"
 )
 
+// validDockerFilterPattern is compiled once at package level to avoid recompilation
+var validDockerFilterPattern = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
 func init() {
 	// Auto-register this plugin
 	core.RegisterInputPlugin("docker", NewDockerInputFromConfig)
@@ -342,6 +345,6 @@ func isValidDockerFilter(filter string) bool {
 		return false
 	}
 	// Allow alphanumeric, hyphens, underscores, dots (no slashes for security)
-	validPattern := regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
-	return validPattern.MatchString(filter)
+	// Uses package-level compiled regex to avoid recompilation on each call
+	return validDockerFilterPattern.MatchString(filter)
 }

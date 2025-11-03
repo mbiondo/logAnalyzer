@@ -316,20 +316,18 @@ func (ob *OutputBuffer) calculateBackoff(attempts int) time.Duration {
 	}
 
 	// Exponential backoff: RetryInterval * 2^(attempts-1)
-	// Ensure attempts is at least 1 to prevent integer overflow
+	// Ensure attempts is at least 1
 	if attempts < 1 {
 		attempts = 1
 	}
-	// Safe calculation to avoid int->uint conversion issues
-	var multiplier int64 = 1
-	for i := 1; i < attempts; i++ {
-		multiplier *= 2
-		// Prevent overflow by capping at reasonable maximum
-		if multiplier > 1000000 {
-			multiplier = 1000000
-			break
-		}
+	
+	// Limit shift to 30 bits to prevent overflow (2^30 = 1,073,741,824)
+	shift := attempts - 1
+	if shift > 30 {
+		shift = 30
 	}
+	multiplier := int64(1 << uint(shift)) // #nosec G115 - shift is capped at 30 bits, safe for int64
+	
 	backoff := ob.config.RetryInterval * time.Duration(multiplier)
 
 	if backoff > ob.config.MaxRetryDelay {
