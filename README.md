@@ -7,6 +7,7 @@
 [![Test Coverage](https://img.shields.io/badge/coverage-71.3%25-brightgreen.svg)](TESTING_REPORT.md)
 [![TLS Support](https://img.shields.io/badge/TLS-MTLS-blue.svg)](TEST_TLS.md)
 [![Security Scan](https://img.shields.io/badge/gosec-0%20issues-brightgreen.svg)](SECURITY.md)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/mbiondo/logAnalyzer)
 
 A flexible, production-ready log processing system with intelligent routing, automatic failover, and zero-downtime operations. Collect logs from multiple sources, filter intelligently, and route to multiple destinations with per-output configuration. Features end-to-end TLS encryption and mutual TLS authentication for secure log processing.
 
