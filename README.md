@@ -1015,8 +1015,7 @@ docker run -v $(pwd)/config.yaml:/config.yaml \
 - **[TESTING_REPORT.md](TESTING_REPORT.md)** - Test coverage and race condition analysis
 - **[PROJECT_INFO.md](PROJECT_INFO.md)** - Project structure and development guide
 - **[examples/README.md](examples/README.md)** - Complete Docker example setup
- - **[examples/README.md](examples/README.md)** - Complete Docker example setup
- - **[VALIDATION.md](docs/VALIDATION.md)** - Validation & developer guide
+- **[VALIDATION.md](docs/VALIDATION.md)** - Validation & developer guide
 
 ## 📦 Project Structure
 
