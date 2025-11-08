@@ -122,10 +122,6 @@ func (m *mockOutput) getCallCount() int {
 func TestNewEngine(t *testing.T) {
 	engine := NewEngine()
 
-	if engine == nil {
-		t.Fatal("NewEngine should not return nil")
-	}
-
 	if engine.inputCh == nil {
 		t.Error("inputCh should be initialized")
 	}

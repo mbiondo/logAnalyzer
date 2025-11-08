@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 // PersistenceConfig defines persistence settings
@@ -21,6 +23,48 @@ type PersistenceConfig struct {
 	FlushInterval  int    `yaml:"flush_interval"`  // Flush interval in seconds (default: 5)
 	RetentionHours int    `yaml:"retention_hours"` // How long to keep WAL files (default: 24)
 	SyncWrites     bool   `yaml:"sync_writes"`     // fsync after each write (slower but safer)
+}
+
+// Validate validates the PersistenceConfig
+func (p PersistenceConfig) Validate() error {
+	// If persistence is not enabled and all fields are zero, skip validation
+	if !p.Enabled && p.Dir == "" && p.MaxFileSize == 0 && p.BufferSize == 0 && p.FlushInterval == 0 && p.RetentionHours == 0 && !p.SyncWrites {
+		return nil
+	}
+	return validation.ValidateStruct(&p,
+		validation.Field(&p.Dir, validation.Length(0, 500).Error("the length must be no more than 500")),
+		validation.Field(&p.MaxFileSize, validation.Min(1024).Error("must be no less than 1024"), validation.Max(10*1024*1024*1024).Error("must be no greater than 10737418240")),
+		validation.Field(&p.BufferSize, validation.By(func(value interface{}) error {
+			v := value.(int)
+			if v < 1 {
+				return fmt.Errorf("must be no less than 1")
+			}
+			if v > 10000 {
+				return fmt.Errorf("must be no greater than 10000")
+			}
+			return nil
+		})),
+		validation.Field(&p.FlushInterval, validation.By(func(value interface{}) error {
+			v := value.(int)
+			if v < 1 {
+				return fmt.Errorf("must be no less than 1")
+			}
+			if v > 3600 {
+				return fmt.Errorf("must be no greater than 3600")
+			}
+			return nil
+		})),
+		validation.Field(&p.RetentionHours, validation.By(func(value interface{}) error {
+			v := value.(int)
+			if v < 1 {
+				return fmt.Errorf("must be no less than 1")
+			}
+			if v > 8760 {
+				return fmt.Errorf("must be no greater than 8760")
+			}
+			return nil
+		})),
+	)
 }
 
 // DefaultPersistenceConfig returns default persistence configuration

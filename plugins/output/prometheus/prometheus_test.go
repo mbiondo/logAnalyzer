@@ -12,10 +12,6 @@ func TestNewPrometheusOutput(t *testing.T) {
 
 	output := NewPrometheusOutputWithPort(9999) // Use a test port
 
-	if output == nil {
-		t.Fatal("NewPrometheusOutput should not return nil")
-	}
-
 	if output.port != 9999 {
 		t.Errorf("Expected port 9999, got %d", output.port)
 	}

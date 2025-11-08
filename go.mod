@@ -7,6 +7,7 @@ toolchain go1.24.3
 require (
 	github.com/elastic/go-elasticsearch/v8 v8.19.0
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/go-ozzo/ozzo-validation/v4 v4.3.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/segmentio/kafka-go v0.4.49
 	gopkg.in/yaml.v3 v3.0.1

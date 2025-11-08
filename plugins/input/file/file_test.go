@@ -116,10 +116,6 @@ func TestParseLogLine(t *testing.T) {
 				return
 			}
 
-			if log == nil {
-				t.Fatal("Expected non-nil log")
-			}
-
 			if log.Level != tt.expectedLevel {
 				t.Errorf("Expected level %s, got %s", tt.expectedLevel, log.Level)
 			}
