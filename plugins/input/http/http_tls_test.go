@@ -170,9 +170,6 @@ func TestHTTPInputWithTLS(t *testing.T) {
 
 	// Get the actual port the server is listening on
 	server := input.server
-	if server == nil {
-		t.Fatal("Server not initialized")
-	}
 
 	// Try to get the listener to extract the actual port
 	if server.TLSConfig == nil {

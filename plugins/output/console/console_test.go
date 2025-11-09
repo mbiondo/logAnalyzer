@@ -77,9 +77,6 @@ func TestNewConsoleOutputWithDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if output == nil {
-		t.Fatal("expected output but got nil")
-	}
 
 	// Check defaults
 	if output.config.Target != "stdout" {

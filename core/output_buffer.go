@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 // OutputBufferConfig defines output buffer configuration
@@ -21,6 +23,32 @@ type OutputBufferConfig struct {
 	FlushInterval time.Duration `yaml:"flush_interval"`  // How often to flush to disk
 	DLQEnabled    bool          `yaml:"dlq_enabled"`     // Enable Dead Letter Queue
 	DLQPath       string        `yaml:"dlq_path"`        // Path for DLQ file
+}
+
+// Validate validates the OutputBufferConfig
+func (o OutputBufferConfig) Validate() error {
+	// If output buffering is not enabled and all fields are zero/default, skip validation
+	if !o.Enabled && o.Dir == "" && o.MaxQueueSize == 0 && o.MaxRetries == 0 && o.RetryInterval == 0 && o.MaxRetryDelay == 0 && o.FlushInterval == 0 && !o.DLQEnabled && o.DLQPath == "" {
+		return nil
+	}
+	return validation.ValidateStruct(&o,
+		validation.Field(&o.Dir, validation.Length(0, 500).Error("the length must be no more than 500")),
+		validation.Field(&o.MaxQueueSize, validation.By(func(value interface{}) error {
+			v := value.(int)
+			if v < 1 {
+				return fmt.Errorf("must be no less than 1")
+			}
+			if v > 100000 {
+				return fmt.Errorf("must be no greater than 100000")
+			}
+			return nil
+		})),
+		validation.Field(&o.MaxRetries, validation.Min(0).Error("must be no less than 0"), validation.Max(100).Error("must be no greater than 100")),
+		validation.Field(&o.RetryInterval, validation.Min(time.Millisecond).Error("must be no less than 1ms"), validation.Max(time.Hour).Error("must be no greater than 1h0m0s")),
+		validation.Field(&o.MaxRetryDelay, validation.Min(time.Millisecond).Error("must be no less than 1ms"), validation.Max(24*time.Hour).Error("must be no greater than 24h0m0s")),
+		validation.Field(&o.FlushInterval, validation.Min(time.Millisecond).Error("must be no less than 1ms"), validation.Max(time.Hour).Error("must be no greater than 1h0m0s")),
+		validation.Field(&o.DLQPath, validation.Length(0, 500).Error("the length must be no more than 500")),
+	)
 }
 
 // DefaultOutputBufferConfig returns default output buffer configuration
@@ -320,14 +348,14 @@ func (ob *OutputBuffer) calculateBackoff(attempts int) time.Duration {
 	if attempts < 1 {
 		attempts = 1
 	}
-	
+
 	// Limit shift to 30 bits to prevent overflow (2^30 = 1,073,741,824)
 	shift := attempts - 1
 	if shift > 30 {
 		shift = 30
 	}
 	multiplier := int64(1 << uint(shift)) // #nosec G115 - shift is capped at 30 bits, safe for int64
-	
+
 	backoff := ob.config.RetryInterval * time.Duration(multiplier)
 
 	if backoff > ob.config.MaxRetryDelay {

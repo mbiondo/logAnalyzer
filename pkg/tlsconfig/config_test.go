@@ -145,9 +145,6 @@ func TestConfig_NewTLSConfig(t *testing.T) {
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
-		if tlsConfig == nil {
-			t.Fatal("expected tls config, got nil")
-		}
 		if !tlsConfig.InsecureSkipVerify {
 			t.Errorf("expected InsecureSkipVerify=true")
 		}
@@ -168,9 +165,6 @@ func TestConfig_NewTLSConfig(t *testing.T) {
 		tlsConfig, err := config.NewTLSConfig()
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
-		}
-		if tlsConfig == nil {
-			t.Fatal("expected tls config, got nil")
 		}
 		if tlsConfig.MinVersion != tls.VersionTLS12 {
 			t.Errorf("expected MinVersion=TLS12, got %d", tlsConfig.MinVersion)

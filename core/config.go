@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/mbiondo/logAnalyzer/pkg/auth"
 	"gopkg.in/yaml.v3"
 )
@@ -28,6 +29,31 @@ type APIAuthConfig struct {
 	RequireKey   bool                `yaml:"require_key"`   // Require API key for all endpoints
 	HealthBypass bool                `yaml:"health_bypass"` // Allow health endpoint without auth
 	APIKeys      []auth.APIKeyConfig `yaml:"api_keys"`      // List of API keys
+}
+
+// Validate validates the APIAuthConfig
+func (a APIAuthConfig) Validate() error {
+	return validation.ValidateStruct(&a,
+		validation.Field(&a.APIKeys, validation.Each(
+			validation.Required,
+			validation.By(func(value interface{}) error {
+				key, ok := value.(auth.APIKeyConfig)
+				if !ok {
+					return fmt.Errorf("invalid API key configuration")
+				}
+				if key.ID == "" {
+					return fmt.Errorf("API key ID cannot be empty")
+				}
+				if key.Secret == "" {
+					return fmt.Errorf("API key secret cannot be empty")
+				}
+				if len(key.Permissions) == 0 {
+					return fmt.Errorf("API key must have at least one permission")
+				}
+				return nil
+			}),
+		)),
+	)
 }
 
 // APIKeyConfig defines an API key configuration
@@ -56,6 +82,17 @@ type Config struct {
 	API          APIConfig          `yaml:"api,omitempty"`
 }
 
+// Validate validates the Config
+func (c Config) Validate() error {
+	return validation.ValidateStruct(&c,
+		validation.Field(&c.Inputs, validation.Required.Error("cannot be blank"), validation.Length(1, 100), validation.Each(validation.Required)),
+		validation.Field(&c.Outputs, validation.Required.Error("cannot be blank"), validation.Length(1, 100), validation.Each(validation.Required)),
+		validation.Field(&c.API),
+		validation.Field(&c.Persistence),
+		validation.Field(&c.OutputBuffer),
+	)
+}
+
 // PluginDefinition represents a generic plugin definition
 type PluginDefinition struct {
 	Type   string         `yaml:"type"`           // Plugin type: "file", "docker", "http", "slack", etc.
@@ -65,6 +102,17 @@ type PluginDefinition struct {
 	// Output-specific options
 	Sources []string           `yaml:"sources,omitempty"` // Input sources to accept logs from (empty = all)
 	Filters []PluginDefinition `yaml:"filters,omitempty"` // Filters to apply before this output
+}
+
+// Validate validates the PluginDefinition
+func (p PluginDefinition) Validate() error {
+	return validation.ValidateStruct(&p,
+		validation.Field(&p.Type, validation.Required.Error("cannot be blank"), validation.In("file", "docker", "http", "kafka", "console", "elasticsearch", "file_output", "prometheus", "slack", "level", "json", "regex", "rate_limit").Error("must be a valid value")),
+		validation.Field(&p.Name, validation.Length(0, 100).Error("the length must be no more than 100")),
+		validation.Field(&p.Config, validation.Required.Error("cannot be blank")),
+		validation.Field(&p.Sources, validation.Each(validation.Required.Error("cannot be blank"))),
+		validation.Field(&p.Filters, validation.Each(validation.Required.Error("cannot be blank"))),
+	)
 }
 
 // LoadConfig loads configuration from a YAML file
@@ -86,6 +134,11 @@ func LoadConfig(filename string) (*Config, error) {
 
 	// Load API keys from environment variables if available
 	loadAPIKeysFromEnv(&config)
+
+	// Validate the configuration
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("configuration validation failed: %w", err)
+	}
 
 	return &config, nil
 }
@@ -300,9 +353,9 @@ func validateFilePath(path string) error {
 	cleanPath := filepath.Clean(path)
 
 	// filepath.Clean() normalizes the path and resolves .. components
-	// If after cleaning, the path tries to traverse outside its base, 
+	// If after cleaning, the path tries to traverse outside its base,
 	// filepath.Clean will preserve that structure for us to detect
-	
+
 	// For relative paths, ensure they don't try to traverse above current directory
 	if !filepath.IsAbs(cleanPath) {
 		// Check if path starts with ../ or ..\\ (Windows)
@@ -310,7 +363,7 @@ func validateFilePath(path string) error {
 			return fmt.Errorf("path contains directory traversal: %s", path)
 		}
 	}
-	
+
 	// Absolute paths are allowed for production use (e.g., /etc/loganalyzer/config.yaml)
 	return nil
 }
@@ -337,11 +390,19 @@ func validateFileInDirectory(filePath, baseDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to compute relative path: %w", err)
 	}
-	
+
 	// If the relative path starts with "..", the file is outside the base directory
 	if strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
 		return fmt.Errorf("file path is outside base directory: %s not in %s", filePath, baseDir)
 	}
 
 	return nil
+}
+
+// Validate validates the APIConfig
+func (a APIConfig) Validate() error {
+	return validation.ValidateStruct(&a,
+		validation.Field(&a.Port, validation.When(a.Enabled, validation.Required.Error("cannot be blank"), validation.Min(1).Error("must be no less than 1"), validation.Max(65535).Error("must be no greater than 65535")).Else(validation.Min(0))),
+		validation.Field(&a.Auth),
+	)
 }
