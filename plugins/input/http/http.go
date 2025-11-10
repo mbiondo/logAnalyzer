@@ -16,6 +16,12 @@ import (
 	"github.com/mbiondo/logAnalyzer/pkg/tlsconfig"
 )
 
+const (
+	// Default rate limiting values
+	DefaultRateLimit = 10.0 // default requests per second
+	DefaultBurst     = 20   // default burst size
+)
+
 func init() {
 	// Auto-register this plugin
 	core.RegisterInputPlugin("http", NewHTTPInputFromConfig)
@@ -176,13 +182,22 @@ func (r *RateLimiter) Allow() bool {
 	now := time.Now()
 	elapsed := now.Sub(r.lastRefill).Seconds()
 
-	// Refill tokens based on elapsed time
+	// Refill tokens based on elapsed time, but only update lastRefill if tokens were actually added
 	if elapsed > 0 {
-		r.tokens += elapsed * r.rate
-		if r.tokens > float64(r.burst) {
-			r.tokens = float64(r.burst)
+		newTokens := elapsed * r.rate
+		if r.tokens < float64(r.burst) {
+			r.tokens += newTokens
+			if r.tokens > float64(r.burst) {
+				// Only advance lastRefill by the time it would take to fill the bucket
+				overfill := r.tokens - float64(r.burst)
+				tokensAdded := newTokens - overfill
+				r.tokens = float64(r.burst)
+				r.lastRefill = r.lastRefill.Add(time.Duration(tokensAdded / r.rate * float64(time.Second)))
+			} else {
+				r.lastRefill = now
+			}
 		}
-		r.lastRefill = now
+		// If tokens are already at burst, do not update lastRefill
 	}
 
 	// Check if we have a token
@@ -228,16 +243,16 @@ func NewHTTPInputWithConfig(config Config) *HTTPInput {
 	if config.RateLimit.Enabled {
 		// Use defaults if not specified
 		if config.RateLimit.Rate <= 0 {
-			config.RateLimit.Rate = 10.0 // default 10 requests per second
+			config.RateLimit.Rate = DefaultRateLimit
 		}
 		if config.RateLimit.Burst <= 0 {
-			config.RateLimit.Burst = 20 // default burst of 20
+			config.RateLimit.Burst = DefaultBurst
 		}
 		// NewRateLimiter validates and returns nil if invalid
 		input.rateLimiter = NewRateLimiter(config.RateLimit.Rate, config.RateLimit.Burst)
 		if input.rateLimiter == nil {
 			// This shouldn't happen since we set defaults above, but safeguard
-			input.rateLimiter = NewRateLimiter(10.0, 20)
+			input.rateLimiter = NewRateLimiter(DefaultRateLimit, DefaultBurst)
 		}
 	}
 
