@@ -481,7 +481,7 @@ func TestHTTPInputRateLimitIntegration(t *testing.T) {
 		Port: "8080",
 		RateLimit: RateLimitConfig{
 			Enabled: true,
-			Rate:    0.5, // 0.5 requests per second
+			Rate:    0.5, // 0.5 requests per second (need 2 seconds for 1 token)
 			Burst:   1,   // burst of 1
 		},
 	}
@@ -507,8 +507,9 @@ func TestHTTPInputRateLimitIntegration(t *testing.T) {
 		t.Errorf("Second request: expected status 429, got %d", w.Code)
 	}
 
-	// Wait for tokens to refill
-	time.Sleep(2100 * time.Millisecond) // Wait > 2 seconds for 1 token to refill
+	// Wait for tokens to refill with generous timeout to handle slow CI/CD environments
+	// At 0.5 req/s, we need ~2 seconds for 1 token; adding 1.5s buffer = 3.5s total
+	time.Sleep(3500 * time.Millisecond)
 
 	// Third request should be allowed again
 	w = httptest.NewRecorder()

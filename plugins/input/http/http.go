@@ -112,6 +112,11 @@ func NewHTTPInputFromConfig(config map[string]any) (any, error) {
 		if cfg.RateLimit.Burst < 0 {
 			return nil, fmt.Errorf("rate limit burst must be non-negative")
 		}
+		// If rate or burst are explicitly set to 0, that's a warning-level issue
+		// (defaults will be applied in NewHTTPInputWithConfig)
+		if cfg.RateLimit.Rate == 0 && cfg.RateLimit.Burst == 0 {
+			// Both are 0, using defaults is fine - this is expected behavior
+		}
 	}
 
 	// Validate TLS config
@@ -138,7 +143,9 @@ type HTTPInput struct {
 	rateLimiter *RateLimiter
 }
 
-// RateLimiter implements token bucket rate limiting for HTTP requests
+// RateLimiter implements token bucket rate limiting for HTTP requests.
+// Uses a token bucket algorithm where tokens refill at a specified rate per second.
+// Note: Token refill uses floating-point arithmetic for sub-second precision and may have minor variations.
 type RateLimiter struct {
 	rate       float64    // tokens per second
 	burst      int        // max tokens
@@ -147,8 +154,12 @@ type RateLimiter struct {
 	mu         sync.Mutex // for thread safety
 }
 
-// NewRateLimiter creates a new rate limiter
+// NewRateLimiter creates a new rate limiter with the given rate (tokens/sec) and burst size.
+// Returns nil if rate or burst are invalid (rate must be > 0, burst must be > 0).
 func NewRateLimiter(rate float64, burst int) *RateLimiter {
+	if rate <= 0 || burst <= 0 {
+		return nil
+	}
 	return &RateLimiter{
 		rate:       rate,
 		burst:      burst,
@@ -215,13 +226,19 @@ func NewHTTPInputWithConfig(config Config) *HTTPInput {
 
 	// Initialize rate limiter if enabled
 	if config.RateLimit.Enabled {
+		// Use defaults if not specified
 		if config.RateLimit.Rate <= 0 {
 			config.RateLimit.Rate = 10.0 // default 10 requests per second
 		}
 		if config.RateLimit.Burst <= 0 {
 			config.RateLimit.Burst = 20 // default burst of 20
 		}
+		// NewRateLimiter validates and returns nil if invalid
 		input.rateLimiter = NewRateLimiter(config.RateLimit.Rate, config.RateLimit.Burst)
+		if input.rateLimiter == nil {
+			// This shouldn't happen since we set defaults above, but safeguard
+			input.rateLimiter = NewRateLimiter(10.0, 20)
+		}
 	}
 
 	return input
@@ -327,6 +344,7 @@ func (h *HTTPInput) handleLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check rate limit if enabled
+	// rateLimiter is nil if rate limiting is disabled, so the nil check is safe and acts as a feature flag
 	if h.rateLimiter != nil && !h.rateLimiter.Allow() {
 		http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 		return
