@@ -60,6 +60,11 @@ inputs:
     name: "http-api"
     config:
       port: "8080"
+      # Rate limiting configuration (protects against abuse)
+      rate_limit:
+        enabled: true
+        rate: 10.0    # 10 requests per second
+        burst: 50     # Allow bursts up to 50 requests
       # Optional authentication configuration
       # auth:
       #   # Basic authentication

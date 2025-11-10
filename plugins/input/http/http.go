@@ -30,6 +30,9 @@ type Config struct {
 
 	// Authentication configuration
 	Auth AuthConfig `yaml:"auth,omitempty"`
+
+	// Rate limiting configuration
+	RateLimit RateLimitConfig `yaml:"rate_limit,omitempty"`
 }
 
 // AuthConfig represents authentication configuration for HTTP input
@@ -47,6 +50,13 @@ type AuthConfig struct {
 
 	// Client certificate authentication (mTLS)
 	ClientCertRequired bool `yaml:"client_cert_required,omitempty"` // Require client certificates
+}
+
+// RateLimitConfig represents rate limiting configuration for HTTP input
+type RateLimitConfig struct {
+	Enabled bool    `yaml:"enabled,omitempty"` // Whether rate limiting is enabled
+	Rate    float64 `yaml:"rate,omitempty"`    // Requests per second
+	Burst   int     `yaml:"burst,omitempty"`   // Maximum burst size
 }
 
 // Validate validates the authentication configuration
@@ -94,6 +104,16 @@ func NewHTTPInputFromConfig(config map[string]any) (any, error) {
 		return nil, fmt.Errorf("invalid auth config: %w", err)
 	}
 
+	// Validate rate limit configuration
+	if cfg.RateLimit.Enabled {
+		if cfg.RateLimit.Rate < 0 {
+			return nil, fmt.Errorf("rate limit rate must be non-negative")
+		}
+		if cfg.RateLimit.Burst < 0 {
+			return nil, fmt.Errorf("rate limit burst must be non-negative")
+		}
+	}
+
 	// Validate TLS config
 	if err := cfg.TLS.Validate(); err != nil {
 		return nil, err
@@ -113,6 +133,54 @@ type HTTPInput struct {
 	stopped   bool   // Flag to prevent multiple stops
 	name      string // Name of this input instance
 	tlsConfig *tls.Config
+
+	// Rate limiter
+	rateLimiter *RateLimiter
+}
+
+// RateLimiter implements token bucket rate limiting for HTTP requests
+type RateLimiter struct {
+	rate       float64    // tokens per second
+	burst      int        // max tokens
+	tokens     float64    // current tokens
+	lastRefill time.Time  // last refill time
+	mu         sync.Mutex // for thread safety
+}
+
+// NewRateLimiter creates a new rate limiter
+func NewRateLimiter(rate float64, burst int) *RateLimiter {
+	return &RateLimiter{
+		rate:       rate,
+		burst:      burst,
+		tokens:     float64(burst), // start with full burst
+		lastRefill: time.Now(),
+	}
+}
+
+// Allow checks if a request should be allowed based on rate limiting
+func (r *RateLimiter) Allow() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(r.lastRefill).Seconds()
+
+	// Refill tokens based on elapsed time
+	if elapsed > 0 {
+		r.tokens += elapsed * r.rate
+		if r.tokens > float64(r.burst) {
+			r.tokens = float64(r.burst)
+		}
+		r.lastRefill = now
+	}
+
+	// Check if we have a token
+	if r.tokens >= 1.0 {
+		r.tokens -= 1.0
+		return true
+	}
+
+	return false
 }
 
 // NewHTTPInput creates a new HTTP input plugin
@@ -134,11 +202,29 @@ func NewHTTPInputWithConfig(config Config) *HTTPInput {
 		config.Port = "8080"
 	}
 
-	return &HTTPInput{
+	// Set default API key header if API key is configured
+	if config.Auth.APIKey != "" && config.Auth.APIKeyHeader == "" {
+		config.Auth.APIKeyHeader = "X-API-Key"
+	}
+
+	input := &HTTPInput{
 		port:   config.Port,
 		config: config,
 		stopCh: make(chan struct{}),
 	}
+
+	// Initialize rate limiter if enabled
+	if config.RateLimit.Enabled {
+		if config.RateLimit.Rate <= 0 {
+			config.RateLimit.Rate = 10.0 // default 10 requests per second
+		}
+		if config.RateLimit.Burst <= 0 {
+			config.RateLimit.Burst = 20 // default burst of 20
+		}
+		input.rateLimiter = NewRateLimiter(config.RateLimit.Rate, config.RateLimit.Burst)
+	}
+
+	return input
 }
 
 // Start begins the HTTP server
@@ -237,6 +323,12 @@ func (h *HTTPInput) handleLogs(w http.ResponseWriter, r *http.Request) {
 	// Check authentication
 	if err := h.authenticateRequest(r); err != nil {
 		http.Error(w, fmt.Sprintf("Authentication failed: %v", err), http.StatusUnauthorized)
+		return
+	}
+
+	// Check rate limit if enabled
+	if h.rateLimiter != nil && !h.rateLimiter.Allow() {
+		http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
 		return
 	}
 

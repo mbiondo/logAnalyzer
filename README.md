@@ -539,6 +539,11 @@ Accept logs via HTTP POST with optional TLS and authentication:
   name: "api-logs"
   config:
     port: "8080"
+    # Rate limiting configuration (protects against abuse)
+    rate_limit:
+      enabled: true
+      rate: 10.0    # Requests per second (float)
+      burst: 50     # Maximum burst size (int)
     # Optional authentication configuration (only one method can be configured at a time)
     # auth:
     #   # Basic authentication (username/password)
@@ -568,7 +573,14 @@ Accept logs via HTTP POST with optional TLS and authentication:
 - **Bearer Token**: JWT or other bearer token authentication
 - **API Key**: Custom header-based API key authentication
 - **Mutual TLS**: Client certificate authentication (requires TLS)
+- **Rate Limiting**: Token bucket rate limiting (optional, protects against abuse)
 - **Single Method Only**: Only one authentication method can be configured at a time
+
+**Rate Limiting:**
+- **Token Bucket Algorithm**: Tokens refill at configured rate per second
+- **HTTP 429 Response**: Rate limited requests return "Rate limit exceeded" with 429 status
+- **Configurable Burst**: Allow temporary bursts above the sustained rate
+- **Thread Safe**: Concurrent request handling with proper synchronization
 
 **Usage Examples:**
 ```bash
@@ -600,6 +612,12 @@ curl --cacert ca-cert.pem --cert client-cert.pem --key client-key.pem \
   -X POST https://localhost:8443/logs \
   -H "Content-Type: application/json" \
   -d '{"level":"error","message":"MTLS authenticated"}'
+
+# Rate limited request (returns HTTP 429)
+curl -X POST http://localhost:8080/logs \
+  -H "Content-Type: text/plain" \
+  -d "This request will be rate limited"
+# Response: HTTP 429 - Rate limit exceeded
 ```
 
 **Authentication Validation:**

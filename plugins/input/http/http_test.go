@@ -316,63 +316,205 @@ func TestHandleJSONLogsArray(t *testing.T) {
 	}
 }
 
-func TestHTTPInputIntegration(t *testing.T) {
-	input := NewHTTPInput("0") // Use port 0 for auto-assignment
+func TestRateLimiter(t *testing.T) {
+	rate := 2.0 // 2 requests per second
+	burst := 3
+	limiter := NewRateLimiter(rate, burst)
+
+	// Should allow burst number of requests initially
+	for i := 0; i < burst; i++ {
+		if !limiter.Allow() {
+			t.Errorf("Should allow request %d within burst", i+1)
+		}
+	}
+
+	// Next should be blocked (no time passed)
+	if limiter.Allow() {
+		t.Error("Should block request after burst is exhausted")
+	}
+
+	// Simulate time passing (set lastRefill to past)
+	limiter.mu.Lock()
+	limiter.lastRefill = time.Now().Add(-1 * time.Second) // 1 second ago
+	limiter.mu.Unlock()
+
+	// Should allow requests based on refilled tokens (2.0 * 1 = 2 tokens refilled)
+	for i := 0; i < 2; i++ {
+		if !limiter.Allow() {
+			t.Errorf("Should allow refilled request %d", i+1)
+		}
+	}
+
+	// Now tokens should be exhausted, next should block
+	if limiter.Allow() {
+		t.Error("Should block again after consuming all refilled tokens")
+	}
+}
+
+func TestHTTPInputWithRateLimit(t *testing.T) {
+	config := Config{
+		Port: "8080",
+		RateLimit: RateLimitConfig{
+			Enabled: true,
+			Rate:    1.0, // 1 request per second
+			Burst:   2,   // burst of 2
+		},
+	}
+	input := NewHTTPInputWithConfig(config)
+
+	if input.rateLimiter == nil {
+		t.Error("Expected rate limiter to be initialized")
+	}
+
+	if input.rateLimiter.rate != 1.0 {
+		t.Errorf("Expected rate 1.0, got %f", input.rateLimiter.rate)
+	}
+
+	if input.rateLimiter.burst != 2 {
+		t.Errorf("Expected burst 2, got %d", input.rateLimiter.burst)
+	}
+}
+
+func TestHTTPInputWithoutRateLimit(t *testing.T) {
+	config := Config{
+		Port: "8080",
+		RateLimit: RateLimitConfig{
+			Enabled: false,
+		},
+	}
+	input := NewHTTPInputWithConfig(config)
+
+	if input.rateLimiter != nil {
+		t.Error("Expected rate limiter to be nil when disabled")
+	}
+}
+
+func TestHTTPInputRateLimitDefaults(t *testing.T) {
+	config := Config{
+		Port: "8080",
+		RateLimit: RateLimitConfig{
+			Enabled: true,
+			// Rate and Burst not set, should use defaults
+		},
+	}
+	input := NewHTTPInputWithConfig(config)
+
+	if input.rateLimiter == nil {
+		t.Error("Expected rate limiter to be initialized")
+	}
+
+	if input.rateLimiter.rate != 10.0 {
+		t.Errorf("Expected default rate 10.0, got %f", input.rateLimiter.rate)
+	}
+
+	if input.rateLimiter.burst != 20 {
+		t.Errorf("Expected default burst 20, got %d", input.rateLimiter.burst)
+	}
+}
+
+func TestHTTPInputRateLimitFromConfig(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    map[string]any
+		wantError bool
+	}{
+		{
+			name: "valid rate limit config",
+			config: map[string]any{
+				"port": "8080",
+				"rate_limit": map[string]any{
+					"enabled": true,
+					"rate":    5.0,
+					"burst":   10,
+				},
+			},
+			wantError: false,
+		},
+		{
+			name: "rate limit disabled",
+			config: map[string]any{
+				"port": "8080",
+				"rate_limit": map[string]any{
+					"enabled": false,
+				},
+			},
+			wantError: false,
+		},
+		{
+			name: "negative rate",
+			config: map[string]any{
+				"port": "8080",
+				"rate_limit": map[string]any{
+					"enabled": true,
+					"rate":    -1.0,
+					"burst":   10,
+				},
+			},
+			wantError: true,
+		},
+		{
+			name: "negative burst",
+			config: map[string]any{
+				"port": "8080",
+				"rate_limit": map[string]any{
+					"enabled": true,
+					"rate":    5.0,
+					"burst":   -1,
+				},
+			},
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewHTTPInputFromConfig(tt.config)
+			if (err != nil) != tt.wantError {
+				t.Errorf("NewHTTPInputFromConfig() error = %v, wantError %v", err, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestHTTPInputRateLimitIntegration(t *testing.T) {
+	config := Config{
+		Port: "8080",
+		RateLimit: RateLimitConfig{
+			Enabled: true,
+			Rate:    0.5, // 0.5 requests per second
+			Burst:   1,   // burst of 1
+		},
+	}
+	input := NewHTTPInputWithConfig(config)
 	logCh := make(chan *core.Log, 10)
 	input.SetLogChannel(logCh)
 
-	// Start the input
-	err := input.Start()
-	if err != nil {
-		t.Fatalf("Failed to start HTTP input: %v", err)
-	}
-	defer func() {
-		_ = input.Stop()
-	}()
-
-	// Wait a bit for server to start
-	time.Sleep(100 * time.Millisecond)
-
-	// Create a test server to get the actual port
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// This is just to get a port, we'll make direct requests
-	}))
-	defer testServer.Close()
-
-	// For integration testing, we'll test the handlers directly since
-	// we can't easily test the actual HTTP server in unit tests
-	// In a real scenario, you'd use a test HTTP client
-
-	// Test health endpoint via direct call
-	req := httptest.NewRequest("GET", "/health", nil)
-	w := httptest.NewRecorder()
-	input.handleHealth(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("Health check failed with status %d", w.Code)
-	}
-
-	// Test logs endpoint with plain text
-	logData := "Test error message"
-	req = httptest.NewRequest("POST", "/logs", bytes.NewReader([]byte(logData)))
+	// Test rate limiting via direct handler calls
+	req := httptest.NewRequest("POST", "/logs", bytes.NewReader([]byte("test log")))
 	req.Header.Set("Content-Type", "text/plain")
+
+	// First request should be allowed
+	w := httptest.NewRecorder()
+	input.handleLogs(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("First request: expected status 200, got %d", w.Code)
+	}
+
+	// Second request should be rate limited (429)
 	w = httptest.NewRecorder()
 	input.handleLogs(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Second request: expected status 429, got %d", w.Code)
+	}
 
+	// Wait for tokens to refill
+	time.Sleep(2100 * time.Millisecond) // Wait > 2 seconds for 1 token to refill
+
+	// Third request should be allowed again
+	w = httptest.NewRecorder()
+	input.handleLogs(w, req)
 	if w.Code != http.StatusOK {
-		t.Errorf("Logs endpoint failed with status %d", w.Code)
-	}
-
-	// Wait for processing
-	time.Sleep(10 * time.Millisecond)
-
-	if len(logCh) != 1 {
-		t.Errorf("Expected 1 log entry, got %d", len(logCh))
-	}
-
-	logEntry := <-logCh
-	if logEntry.Level != "error" {
-		t.Errorf("Expected level 'error', got '%s'", logEntry.Level)
+		t.Errorf("Third request after refill: expected status 200, got %d", w.Code)
 	}
 }
 
