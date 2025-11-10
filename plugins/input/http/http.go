@@ -118,11 +118,7 @@ func NewHTTPInputFromConfig(config map[string]any) (any, error) {
 		if cfg.RateLimit.Burst < 0 {
 			return nil, fmt.Errorf("rate limit burst must be non-negative")
 		}
-		// If rate or burst are explicitly set to 0, that's a warning-level issue
-		// (defaults will be applied in NewHTTPInputWithConfig)
-		if cfg.RateLimit.Rate == 0 && cfg.RateLimit.Burst == 0 {
-			// Both are 0, using defaults is fine - this is expected behavior
-		}
+		// If rate or burst are explicitly set to 0, defaults will be applied in NewHTTPInputWithConfig
 	}
 
 	// Validate TLS config
